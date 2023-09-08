@@ -1,0 +1,1010 @@
+---
+title: "   "
+status: 
+sample: 
+output:
+  html_document:
+    code_folding: hide
+    code_download: true
+---
+# Introduction
+
+Research Question: 
+
+Hypothesis:
+
+# Initializion Code
+
+```{r, message=FALSE}
+# The user defines different variables and parameters that will be specific to the study.
+
+injection_date <- as.Date("   ", format = "%m/%d/%Y")
+
+trt_date <- as.Date("   ", format = "%m/%d/%Y")
+
+sac_date <- as.Date("   ", format = "%m/%d/%Y")
+
+engraftment_imaging_date <- as.Date("   ", format = "%m/%d/%Y")
+
+imaging_dates <- as.Date(c("   ", "    ", "    "), format = "%m/%d/%Y")
+
+number_of_expansion_mice <- 
+number_of_groups <- 4
+mice_per_group <- 
+labels <- c("1" = "AAA", "2" = "BBB", "3" = "CCC", "4" = "DDD")
+filtered_mice <- c(21:24, 26:40, 43)
+
+# Load packages
+library(tidyverse)
+library(kableExtra)
+library(survival)
+library(survminer)
+
+# Set the working directory to the current script's directory
+setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+```
+
+# Data Processing
+
+```{r, message=FALSE, warnings=FALSE}
+# Create 'processed_data' which will be one data frame that contains:
+# 1. all of the imaging data across weeks by funneling all of the weeks' imaging data into one data frame.
+# 2. all of the mass data across weeks.
+
+# Read the 'raw_data.csv' file into a data frame
+raw_data <- read.csv("data/raw/raw_data.csv")
+
+# Set the file path
+file_path <- "data/imaging/processed/"
+
+# Get a list of all weeks' imaging data .csv files in the directory
+csv_files <- list.files(file_path, pattern = "\\.csv$", full.names = TRUE)
+
+# Function to read, process, and save each csv file as a data frame with the same name
+read_process_save_csv <- function(file) {
+  # Extract the file name without extension
+  file_name <- tools::file_path_sans_ext(basename(file))
+  
+  # Read the csv file into a data frame with check.names = FALSE
+  df <- read.csv(file, check.names = FALSE)
+
+# Remove specified columns
+columns_to_remove <- c("Image Number", "ROI", "Image Layer", "Stdev Radiance", "Min Radiance", "Max Radiance")
+df <- df[, !colnames(df) %in% columns_to_remove]
+  
+# Rename columns
+colnames(df)[colnames(df) == "ROI Label"] <- "mouse_number"
+colnames(df)[colnames(df) == "Experiment"] <- "imaging_date"
+colnames(df)[colnames(df) == "Total Flux [p/s]"] <- "total_flux"
+
+# Rename the last column header indirectly because otherwise, the exponent cannot be handled
+  colnames(df)[ncol(df)] <- "avg_radiance"
+  
+  # Assign the processed data frame to a variable with the same name as the csv file
+  assign(file_name, df, envir = .GlobalEnv)
+}
+
+# Use lapply() to read, process, and save each csv file
+invisible(lapply(csv_files, read_process_save_csv))
+
+# Combine all weeks' imaging data using do.call() and bind_rows()
+invisible(imaging_data <- do.call(bind_rows, mget(tools::file_path_sans_ext(basename(csv_files)), envir = .GlobalEnv)))
+
+# Convert imaging_date to Date class with the appropriate format
+imaging_data$imaging_date <- as.Date(imaging_data$imaging_date, format = "%m/%d/%Y")
+
+# Arrange the imaging_data data frame by imaging_date and then mouse_number
+imaging_data <- imaging_data %>%
+  arrange(imaging_date, mouse_number)
+  
+# Write the 'imaging_data' data frame to a CSV file
+write_csv(imaging_data, file = "data/processed/imaging_data.csv")
+
+# Combine 'imaging_data' with 'raw_data' to make processed_data
+processed_data <- left_join(raw_data, imaging_data, by = "mouse_number")
+
+# Read the 'raw_mass.csv' file into a data frame
+raw_mass <- read.csv("data/raw/raw_mass.csv")
+
+# Combine 'raw_mass' with 'processed_data'
+processed_data <- left_join(processed_data, raw_mass, by = "mouse_number")
+
+# Write the 'processed_data' data frame to a CSV file
+write_csv(processed_data, file = "data/processed/processed_data.csv")
+```
+
+# Assignment {.tabset}
+
+## Engraftment Status
+
+```{r, message=FALSE, warnings=FALSE, fig.height=6, fig.width=11}
+processed_data <- read.csv("data/processed/processed_data.csv")
+
+processed_data %>% 
+  ggplot(aes(x = reorder(mouse_number, -total_flux), y = total_flux, color = factor(imaging_date))) +
+  geom_point() +
+  scale_y_log10() +  # Apply logarithmic scale to the y-axis
+  labs(x = "Mouse Number", y = "Total Flux", color = "Imaging Date") +
+  theme_minimal()
+
+# Count the number of mice with total_flux > 1e6 and total_flux <= 1e6
+mice_greater_than_1e6 <- processed_data %>%
+  filter(imaging_date == engraftment_imaging_date) %>% 
+  distinct(trt, mouse_number, .keep_all = TRUE) %>%
+  filter(total_flux > 1e6) %>%
+  nrow()
+
+mice_less_than_1e6 <- processed_data %>%
+  filter(imaging_date == engraftment_imaging_date) %>% 
+  distinct(trt, mouse_number, .keep_all = TRUE) %>%
+  filter(total_flux <= 1e6) %>%
+  nrow()
+
+# Get the specific mouse numbers for mice with total_flux <= 1e6
+specific_mice_numbers <- processed_data %>% filter(total_flux <= 1e6) %>% select(mouse_number)
+
+# Create a table
+table_data <- data.frame(
+  "Engrafted" = mice_greater_than_1e6,
+  "Not Engrafted" = mice_less_than_1e6
+)
+
+# Print the table
+kable(table_data, format = "html") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+
+# Find the mouse numbers that are not engrafted, check if there are non-engrafted mice, and return the numbers
+processed_data %>%
+  filter(total_flux <= 1e6, imaging_date == engraftment_imaging_date) %>%
+  pull(mouse_number) %>%
+  unique() %>%
+  { if (length(.) > 0) {
+      cat("These mice are not engrafted because their total flux is less than 1e6:", paste(., collapse = ", "))
+    } else {
+      cat("All mice are engrafted because their total flux is greater than 1e6.")
+    }
+  }
+```
+
+## Treatment Assignment
+
+Randomly assign mice to treatment conditions so that each treatment condition has equivalent total_flux between treatments. All of the unassigned remaining mice have the lowest total_flux and are assigned to the expansion group.
+
+```{r, message=FALSE, warnings=FALSE}
+filtered_data <- processed_data %>%
+  arrange(total_flux) %>%
+  filter(imaging_date == engraftment_imaging_date) %>%
+  head(-number_of_expansion_mice)
+
+# Define the assign_groups function
+assign_groups <- function(data, num_groups, num_per_group) {
+  # Create an empty vector to store group assignments
+  trt <- integer(nrow(data))
+  
+  # Create a data frame to store mean total_flux for each group
+  mean_total_flux <- data.frame(Group = 1:num_groups, Mean_Total_Flux = numeric(num_groups))
+  
+  # Shuffle the data to randomize assignments
+  data <- data[sample(nrow(data)), ]
+  for (i in 1:num_groups) {
+    # Select a subset of data for each group
+    group_data <- data[((i - 1) * num_per_group + 1):(i * num_per_group), ]
+    
+    # Calculate mean total_flux for the group
+    mean_flux <- mean(group_data$total_flux)
+    
+    # Assign the group number to the trt column
+    trt[((i - 1) * num_per_group + 1):(i * num_per_group)] <- i
+    
+    # Store the mean total_flux in the mean_total_flux data frame
+    mean_total_flux[i, 2] <- mean_flux
+  }
+  
+  # Add the trt column to the data frame
+  data$trt <- trt
+  
+  # Return the data frame with group assignments
+  return(list(Data = data, Mean_Total_Flux = mean_total_flux))
+}
+
+# Initialize variables to store the best seed and its corresponding variability
+best_seed <- NULL
+best_variability <- Inf
+
+# Loop through the first 5000 seeds
+for (seed in 1:5000) {
+  set.seed(seed)
+  
+  # Call the function to assign groups using filtered_data
+  result <- assign_groups(filtered_data, number_of_groups, mice_per_group)
+  
+  # Calculate the standard deviation of mean total_flux across groups
+  variability <- sd(result$Mean_Total_Flux$Mean_Total_Flux)
+  
+  # Check if this seed has lower variability than the current best
+  if (variability < best_variability) {
+    best_variability <- variability
+    best_seed <- seed
+  }
+}
+
+# Print the seed with the least variability
+cat("Seed with the least variability:", best_seed, "\n")
+
+set.seed(best_seed)
+
+# Function to assign mice to groups
+assign_groups <- function(data, num_groups, num_per_group) {
+  # Create an empty vector to store group assignments
+  trt <- integer(nrow(data))
+  
+  # Create a data frame to store mean total_flux for each group
+  mean_total_flux <- data.frame(Group = 1:num_groups, Mean_Total_Flux = numeric(num_groups))
+  
+  # Shuffle the data to randomize assignments
+  data <- data[sample(nrow(data)), ]
+  for (i in 1:num_groups) {
+    # Select a subset of data for each group
+    group_data <- data[((i - 1) * num_per_group + 1):(i * num_per_group), ]
+    
+    # Calculate mean total_flux for the group
+    mean_flux <- mean(group_data$total_flux)
+    
+    # Assign the group number to the trt column
+    trt[((i - 1) * num_per_group + 1):(i * num_per_group)] <- i
+    
+    # Store the mean total_flux in the mean_total_flux data frame
+    mean_total_flux[i, 2] <- mean_flux
+  }
+  
+  # Add the trt column to the data frame
+  data$trt <- trt
+  
+  # Return the data frame with group assignments
+  return(list(Data = data, Mean_Total_Flux = mean_total_flux))
+}
+
+# Call the function to assign groups using filtered_data
+result <- assign_groups(filtered_data, number_of_groups, mice_per_group)
+
+# Print the mean total_flux for each group
+print(result$Mean_Total_Flux)
+
+# Updated data frame with group assignments in the 'trt' column
+filtered_data_1 <- result$Data
+
+# Calculate the mean total_flux for each trt group
+trt_means <- filtered_data %>%
+  group_by(trt) %>%
+  summarise(mean_total_flux = mean(total_flux))
+  
+# Calculate the mean of each trt group's total_flux
+trt_means <- filtered_data %>%
+  group_by(trt) %>%
+  summarise(mean_total_flux = mean(total_flux))
+
+# Add jitter to individual points to prevent overlap
+jittered_data <- filtered_data %>%
+  mutate(jittered_total_flux = total_flux + runif(n(), -0.2, 0.2))
+
+# Create a scatter plot of means and individual points
+ggplot() +
+  geom_point(data = jittered_data, aes(x = trt, y = jittered_total_flux), 
+             size = 2, color = "lightgray", alpha = 0.6, position = position_jitter(width = 0.2)) +
+  geom_point(data = trt_means, aes(x = trt, y = mean_total_flux), 
+             size = 3, color = "blue") +
+  labs(x = "trt", y = "Total Flux") +
+  theme_minimal()
+
+# Merge the data frames filtered_data and processed_data
+processed_data <- processed_data %>%
+  left_join(filtered_data %>% select(mouse_number, trt), by = "mouse_number") %>%
+  mutate(trt = coalesce(trt.x, trt.y)) %>%
+  select(-trt.x, -trt.y) %>%
+  select(mouse_number, trt, everything()) %>%
+  relocate(trt, .before = trt_injection_vial)
+  
+# Write the 'processed_data' data frame to a CSV file
+write_csv(processed_data, file = "data/processed/processed_data.csv")
+```
+
+# Procedures {.tabset}
+
+## Thawing tumor:
+
+```{r, message=FALSE, warnings=FALSE}
+processed_data <- read.csv("data/processed/processed_data.csv")
+
+processed_data %>%
+  select(mouse_number, tumor_injection_quality, tumor_injection_vial, tumor_cells_per_mouse, tumor_injection_date, tumor_total_cell_count, tumor_cell_viability_after_thaw, tumor_total_live_cell_count) %>% 
+  filter(mouse_number %in% filtered_mice) %>% 
+  distinct(mouse_number, .keep_all = TRUE) %>%
+  kable(format = "html") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+## Thawing trt:
+
+```{r, message=FALSE, warnings=FALSE}
+processed_data <- read.csv("data/processed/processed_data.csv")
+
+processed_data %>%
+  select(mouse_number, trt_injection_quality, trt_injection_vial, trt_cells_per_mouse, trt_injection_date, trt_total_cell_count, trt_cell_viability_after_thaw, trt_total_live_cell_count) %>% 
+  filter(mouse_number %in% filtered_mice) %>% 
+  distinct(mouse_number, .keep_all = TRUE) %>%
+  kable(format = "html") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+# Subjects {.tabset}
+
+## Mouse Current Status Plot
+
+```{r, message=FALSE, warnings=FALSE, fig.height=6, fig.width=10}
+processed_data <- read.csv("data/processed/processed_data.csv")
+
+# Your summary table
+summary_table <- processed_data %>%
+  filter(mouse_number %in% filtered_mice) %>%
+  distinct(trt, mouse_number, .keep_all = TRUE) %>%
+  group_by(trt) %>%
+  summarize(
+    Dead = n_distinct(mouse_number[!is.na(manner_of_death)]),  # Count unique mice with non-missing values for 'Dead'
+    Alive = n_distinct(mouse_number[is.na(manner_of_death)]),   # Count unique mice with missing values for 'Alive'
+    Dead_Mouse_Numbers = toString(mouse_number[!is.na(manner_of_death)]),  # List mouse numbers for Dead
+    Alive_Mouse_Numbers = toString(mouse_number[is.na(manner_of_death)])  # List mouse numbers for Alive
+  )
+
+# Calculate total unique mice dead and alive
+total_dead <- sum(summary_table$Dead)
+total_alive <- sum(summary_table$Alive)
+
+# Create a grouped bar plot
+p <- ggplot(summary_table, aes(x = factor(trt, labels = labels))) +
+  geom_bar(aes(y = Dead, fill = "Dead"), stat = "identity", position = "dodge") +
+  geom_bar(aes(y = Alive, fill = "Alive"), stat = "identity", position = "dodge") +
+  scale_fill_manual(values = c("Dead" = "red", "Alive" = "green")) +
+  labs(x = "Treatment", y = "Count", fill = "Status") +
+  ggtitle("Dead and Alive Mice Counts by Treatment") +
+  theme_minimal() +
+  theme(legend.position = "top",
+        panel.grid.major.x = element_blank(),
+        panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank())  # Remove horizontal grid lines between y-axis tick marks
+
+# Set x-axis breaks and limits using scale_x_discrete
+p <- p + scale_x_discrete(breaks = labels, limits = labels)
+
+# Set y-axis breaks and limits
+p <- p +
+  scale_y_continuous(
+    breaks = seq(0, 5, by = 1),  # Set breaks by units of 1
+    limits = c(0, 8)  # Adjust the limits to provide more space for labels
+  )
+
+# Add annotations for alive and dead mouse numbers with color based on 'death_date'
+p <- p +
+  geom_text(aes(x = factor(trt, labels = labels), y = Dead + Alive + 0.5, 
+                label = Dead_Mouse_Numbers, color = "red"), 
+            size = 5, hjust = 0.5) +  # Adjust the size parameter for larger labels
+  geom_text(aes(x = factor(trt, labels = labels), y = Dead + Alive + 0.5, 
+                label = Alive_Mouse_Numbers, color = "green"), 
+            size = 5, hjust = 0.5)  # Adjust the size parameter for larger labels
+
+# Set legend labels including total counts
+p <- p +
+  labs(fill = paste("Status (Alive:", total_alive, ", Dead:", total_dead, ")"))
+
+# Specify the color scale for text labels
+p <- p +
+  scale_color_manual(values = c("red" = "red", "green" = "green"))
+
+# Remove the color legend for "Status"
+p <- p +
+  guides(color = "none")
+
+print(p)
+
+# Convert date columns to date format
+processed_data$imaging_date <- as.Date(processed_data$imaging_date)
+processed_data$mass_date <- as.Date(processed_data$mass_date)
+processed_data$death_date <- as.Date(processed_data$death_date)
+
+# Find the most recent imaging_date
+most_recent_imaging_date <- max(processed_data$imaging_date, na.rm = TRUE)
+
+# Find the oldest and newest mass_date for each mouse
+mass_date_summary <- processed_data %>%
+  filter(!is.na(mass_date)) %>%
+  group_by(mouse_number) %>%
+  summarize(
+    oldest_mass_date = min(mass_date),
+    newest_mass_date = max(mass_date)
+  )
+
+# Calculate the mass loss percentage for each mouse
+mass_loss <- mass_date_summary %>%
+  mutate(
+    mouse_number = as.character(mouse_number),  # Convert mouse_number to character
+    mass_loss_percentage = (1 - newest_mass_date / oldest_mass_date) * 100
+  )
+
+# Find mice with total_flux >= 2e10 from the most recent imaging_date
+high_flux_mice <- processed_data %>%
+  filter(imaging_date == most_recent_imaging_date,
+         total_flux >= 2e10,
+         is.na(death_date))
+
+# Find mice meeting the mass loss criterion (20% or more loss)
+mass_loss_mice <- mass_loss %>%
+  filter(mass_loss_percentage >= 20)
+
+# Combine the two sets of mice that meet either criteria
+mice_to_euthanize <- union(high_flux_mice$mouse_number, mass_loss_mice$mouse_number)
+
+# Check if there are any mice to euthanize based on either criterion
+if (length(mice_to_euthanize) > 0) {
+  if (length(mice_to_euthanize) > 0 && length(high_flux_mice$mouse_number) > 0) {
+    cat("With respect to the IACUC protocol, you need to euthanize mouse number(s) meeting the following criteria:\n")
+    cat("- Total flux greater than or equal to 2x10^10:", paste(high_flux_mice$mouse_number, collapse = ", "), "\n")
+  }
+  
+  if (length(mice_to_euthanize) > 0 && length(mass_loss_mice$mouse_number) > 0) {
+    cat("- Mass loss of 20% or more:", paste(mass_loss_mice$mouse_number, collapse = ", "), "\n")
+  }
+} else {
+  cat("No mice meet the criteria for euthanasia.")
+}
+
+# Create a scatterplot for cage_number, trt, and status without overlap
+scatterplot <- processed_data %>%
+  select(cage_number, mouse_number, trt, manner_of_death) %>% 
+  filter(mouse_number %in% filtered_mice) %>% 
+  distinct(trt, mouse_number, .keep_all = TRUE) %>% 
+  ggplot(aes(x = factor(cage_number), y = factor(trt, labels = labels))) +  # Use labels here
+  geom_jitter(
+    aes(color = ifelse(is.na(manner_of_death) | manner_of_death == "", "Alive", "Dead")),
+    size = 3,
+    position = position_dodge2(width = 0.5),  # Adjust width as needed
+    alpha = 0.7
+  ) +
+  geom_text(
+    aes(label = mouse_number), 
+    position = position_dodge2(width = 0.5),  # Match the jitter width
+    vjust = -1,  # Adjust vertical position to add space
+    size = 3
+  ) +
+  scale_color_manual(
+    values = c("Dead" = "red", "Alive" = "green")
+  ) +
+  labs(x = "Cage Number", y = "Treatment", color = "Status") +
+  ggtitle("Mouse Status by Cage and Treatment") +
+  theme_minimal() +
+  theme(legend.position = "top", 
+        axis.text.x = element_text(size = 12, margin = margin(0, 40, 0, 40))) +  # Remove angle and adjust size
+  guides(color = "none") +  # Remove the legend for "Status"
+  scale_x_discrete(breaks = unique(raw_data$cage_number))  # Set breaks for x-axis
+
+print(scatterplot)
+```
+
+## Mouse Current Status Table
+
+```{r, message=FALSE, warnings=FALSE}
+# Create and print the table with labels
+table_data <- processed_data %>%
+  select(mouse_number, death_date, manner_of_death) %>% 
+  filter(mouse_number %in% filtered_mice) %>% 
+  distinct(mouse_number, .keep_all = TRUE)
+
+processed_data %>%
+  select(cage_number, mouse_number, trt, imaging_date, total_flux, avg_radiance, manner_of_death) %>% 
+  filter(mouse_number %in% filtered_mice) %>%
+  mutate(
+    trt = labels[as.character(trt)],
+    log_total_flux = log(total_flux),
+    days_from_inj_to_death = exp(-0.1728 * log_total_flux + 5.1164),
+    predicted_death_date = as.Date(Sys.Date() + days_from_inj_to_death, origin = "1970-01-01")
+  ) %>%
+  group_by(mouse_number) %>%
+  filter(imaging_date == max(imaging_date)) %>%
+  kable(format = "html") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+
+# Create a .csv file of current mice data to print
+table_data <- processed_data %>%
+  select(cage_number, mouse_number, trt, imaging_date, total_flux, avg_radiance, death_date, manner_of_death) %>%
+  filter(mouse_number %in% c(21:44), imaging_date == max(imaging_date)) %>% 
+  arrange(cage_number, mouse_number, trt) %>%
+  mutate(
+    trt = labels[as.character(trt)],
+    log_total_flux = log(total_flux),
+    days_from_inj_to_death = exp(-0.1728 * log_total_flux + 5.1164),
+    predicted_death_date = as.Date(Sys.Date() + days_from_inj_to_death, origin = "1970-01-01")
+  ) %>%
+  mutate(
+    # Calculate standard error for the days_from_inj_to_death
+    stderr = 1.96 * (days_from_inj_to_death / sqrt(n())),
+    lower_bound = predicted_death_date - stderr,
+    upper_bound = predicted_death_date + stderr
+  ) %>%
+  select(-log_total_flux, -days_from_inj_to_death, -stderr)
+
+# Write the data to a CSV file named "current_mice_data.csv"
+write.csv(table_data, file = "current_mice_data.csv", row.names = FALSE)
+```
+
+## Cage Cards
+
+```{r, results='asis'}
+png_files <- list.files("cage_cards", pattern = "\\.png$", full.names = TRUE)
+
+for (png_file in png_files) {
+  cat(sprintf("<img src='%s' />\n\n", png_file))
+}
+```
+
+# Results {.tabset}
+
+## Plots {.tabset}
+
+### Mean Total Flux by Treatment
+
+```{r, message=FALSE, warning=FALSE, fig.height=6, fig.width=11}
+processed_data <- read.csv("data/processed/processed_data.csv")
+
+# Group by trt and imaging_date, and calculate the mean total_flux for each group
+mean_data <- processed_data %>%
+  filter(mouse_number %in% filtered_mice) %>% 
+  group_by(trt, imaging_date) %>%
+  summarise(mean_total_flux = mean(total_flux)) %>%
+  mutate(imaging_date = as.Date(imaging_date))
+
+# Define a custom theme for the plot (without vertical grid lines)
+my_theme <- theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12, margin = margin(r = 15)),  # Adjust the margin
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12),
+    panel.grid.major.x = element_blank(),  # Remove vertical grid lines
+    panel.grid.minor.x = element_blank()   # Remove vertical minor grid lines
+  )
+
+# Convert imaging_dates to character strings
+imaging_date_breaks <- as.character(imaging_dates)
+
+# Create the scatter plot with lines connecting group points
+p <- ggplot(data = mean_data, aes(x = as.Date(imaging_date), y = mean_total_flux, color = factor(trt))) + 
+  geom_point(position = position_dodge(width = 0.4), size = 1.3) +  
+  geom_line(aes(group = factor(trt)), position = position_dodge(width = 0.4), size = 0.9) +
+  labs(x = "Imaging Date", y = "Mean Total Flux", color = "Treatment") +
+  my_theme +
+  scale_y_log10(labels = scales::scientific_format()) +  # Make the y-axis a log scale
+  geom_vline(xintercept = as.Date(c(injection_date, trt_date, sac_date), format = "%m/%d/%Y"), 
+             linetype = "dashed", color = "black") +
+  scale_color_manual(
+    values = c(
+      "1" = alpha("#f8766d", 1),  # XXX
+      "2" = alpha("#7cae00", 1),  # XXX
+      "3" = alpha("#00bfc4", 1),  # XXX
+      "4" = alpha("#C3B1E1", 1)   # XXX
+    ),
+    labels = labels  # Assign custom labels to trt levels
+  ) +
+  scale_x_continuous(
+    breaks = as.numeric(imaging_dates),  # Set custom breaks as numeric values
+    labels = as.character(imaging_dates)  # Convert breaks to character labels
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+
+  # Add labels for vertical lines
+  geom_text(
+    x = as.Date(injection_date, format = "%m/%d/%Y"),  # X position for the label
+    y = Inf,  # Position the label outside the plot area
+    label = "ETP1 Injection",  # Label text
+    vjust = 1,  # Adjust vertical position
+    hjust = -0.1,  # Adjust horizontal position
+    color = "black"  # Set the text color to black
+  ) +
+  geom_text(
+    x = as.Date(trt_date, format = "%m/%d/%Y"),  # X position for the label
+    y = Inf,  # Position the label outside the plot area
+    label = "Treatment",  # Label text
+    vjust = 1,  # Adjust vertical position
+    hjust = -0.1,  # Adjust horizontal position
+    color = "black"  # Set the text color to black
+  ) +
+  geom_text(
+    x = as.Date(sac_date, format = "%m/%d/%Y"),  # X position for the label
+    y = Inf,  # Position the label outside the plot area
+    label = "Sacrifice",  # Label text
+    vjust = 1,  # Adjust vertical position
+    hjust = 1.1,  # Adjust horizontal position to the left
+    color = "black"  # Set the text color to black
+  ) +
+  theme(legend.text = element_text(size = 10))  # Adjust legend text size
+
+print(p)
+```
+
+### Mean Total Flux and Individual Total Flux by Treatment
+
+```{r, message=FALSE, warning=FALSE, fig.height=6, fig.width=11}
+# Read the data
+processed_data <- read.csv("data/processed/processed_data.csv")
+
+# Group by trt and imaging_date, and calculate the mean total_flux for each group
+mean_data <- processed_data %>%
+  filter(mouse_number %in% filtered_mice) %>% 
+  group_by(trt, imaging_date) %>%
+  summarise(mean_total_flux = mean(total_flux, na.rm = TRUE)) %>%
+  mutate(imaging_date = as.Date(imaging_date))
+
+# Define a custom theme for the plot (without vertical grid lines)
+my_theme <- theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12, margin = margin(r = 15)),  # Adjust the margin
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12),
+    panel.grid.major.x = element_blank(),  # Remove vertical grid lines
+    panel.grid.minor.x = element_blank(),  # Remove vertical minor grid lines
+    strip.text.x = element_blank()  # Remove the titles above facets
+  )
+
+# Create the plot, including filtering for mouse_number
+p <- ggplot(data = processed_data %>%
+              filter(mouse_number %in% filtered_mice), 
+            aes(x = as.Date(imaging_date), y = total_flux, color = factor(trt))) +
+  geom_line(data = mean_data, aes(x = imaging_date, y = mean_total_flux, group = trt), size = 0.9) +  # Connected lines for group means
+  geom_point(size = 1.3, shape = 16, alpha = 0.5) +  # Points for individual mice
+  labs(x = NULL, y = "Total Flux", color = "Treatment") +
+  scale_y_log10(labels = scales::scientific_format()) +
+  scale_color_manual(
+    values = c(
+      "1" = alpha("#f8766d", 1),  # XXX
+      "2" = alpha("#7cae00", 1),  # XXX
+      "3" = alpha("#00bfc4", 1),  # XXX
+      "4" = alpha("#C3B1E1", 1)   # XXX
+    ),
+    labels = labels
+  ) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
+  my_theme +
+  facet_wrap(~ trt)
+
+# Print the plot with corrected aesthetics for mouse total_flux points and the legend to the right
+print(p + theme(legend.position = "right", legend.direction = "vertical", legend.box = "vertical"))
+```
+
+### Total Flux of Individual Mice  by Treatment
+
+```{r, message=FALSE, warning=FALSE, fig.height=6, fig.width=11}
+# Read the data
+processed_data <- read.csv("data/processed/processed_data.csv")
+
+# Define a custom theme for the plot (without vertical grid lines)
+my_theme <- theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12, margin = margin(r = 15)),  # Adjust the margin
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12),
+    panel.grid.major.x = element_blank(),  # Remove vertical grid lines
+    panel.grid.minor.x = element_blank(),  # Remove vertical minor grid lines
+    strip.text.x = element_blank()  # Remove the titles above facets
+  )
+
+# Create the plot, including filtering for mouse_number
+p <- ggplot(data = processed_data %>%
+              filter(mouse_number %in% filtered_mice), 
+            aes(x = as.Date(imaging_date), y = total_flux, color = factor(trt))) +
+  geom_point(aes(group = interaction(trt, mouse_number)), size = 2.5, shape = 16, alpha = 0.5) +  # Thicker points for individual mice
+  geom_line(aes(group = interaction(trt, mouse_number)), size = 1.2, alpha = 0.3) +  # Thicker lines connecting points for each mouse
+  labs(x = NULL, y = "Total Flux", color = "Treatment") +
+  scale_y_log10(labels = scales::scientific_format()) +
+  scale_color_manual(
+    values = c(
+      "1" = alpha("#f8766d", 1),  # XXX
+      "2" = alpha("#7cae00", 1),  # XXX
+      "3" = alpha("#00bfc4", 1),  # XXX
+      "4" = alpha("#C3B1E1", 1)   # XXX
+    ),
+    labels = labels
+  ) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
+  my_theme +
+  facet_wrap(~ trt)
+
+# Print the plot with corrected aesthetics for mouse total_flux points and the legend to the right
+print(p + theme(legend.position = "right", legend.direction = "vertical", legend.box = "vertical"))
+```
+
+### Median Total Flux by Treatment
+
+```{r, message=FALSE, warning=FALSE, fig.height=6, fig.width=11}
+processed_data <- read.csv("data/processed/processed_data.csv")
+
+# Group by trt and imaging_date, and calculate the median total_flux for each group
+median_data <- processed_data %>%
+  filter(mouse_number %in% filtered_mice) %>% 
+  group_by(trt, imaging_date) %>%
+  summarise(median_total_flux = median(total_flux)) %>%
+  mutate(imaging_date = as.Date(imaging_date))
+
+# Define a custom theme for the plot (without vertical grid lines)
+my_theme <- theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12, margin = margin(r = 15)),  # Adjust the margin
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12),
+    panel.grid.major.x = element_blank(),  # Remove vertical grid lines
+    panel.grid.minor.x = element_blank()   # Remove vertical minor grid lines
+  )
+
+# Convert imaging_dates to character strings
+imaging_date_breaks <- as.character(imaging_dates)
+
+# Create the scatter plot with lines connecting group points
+p <- ggplot(data = median_data, aes(x = as.Date(imaging_date), y = median_total_flux, color = factor(trt))) + 
+  geom_point(position = position_dodge(width = 0.4), size = 1.3) +  
+  geom_line(aes(group = factor(trt)), position = position_dodge(width = 0.4), size = 0.9) +
+  labs(x = "Imaging Date", y = "Median Total Flux", color = "Treatment") +
+  my_theme +
+  scale_y_log10(labels = scales::scientific_format()) +
+  geom_vline(xintercept = as.Date(c(injection_date, trt_date, sac_date), format = "%m/%d/%Y"), 
+             linetype = "dashed", color = "black") +
+  scale_color_manual(
+    values = c(
+      "5" = alpha("#f8766d", 1),  # CCR4 CAR2
+      "6" = alpha("#7cae00", 1),  # CART38
+      "7" = alpha("#00bfc4", 1),  # UTD CART38
+      "8" = alpha("#C3B1E1", 1)   # Untreated
+    ),
+    labels = labels  # Assign custom labels to trt levels
+  ) +
+  scale_x_continuous(
+    breaks = as.numeric(imaging_dates),  # Set custom breaks as numeric values
+    labels = as.character(imaging_dates)  # Convert breaks to character labels
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+
+  # Add labels for vertical lines
+  geom_text(
+    x = as.Date(injection_date, format = "%m/%d/%Y"),  # X position for the label
+    y = Inf,  # Position the label outside the plot area
+    label = "ETP1 Injection",  # Label text
+    vjust = 1,  # Adjust vertical position
+    hjust = -0.1,  # Adjust horizontal position
+    color = "black"  # Set the text color to black
+  ) +
+  geom_text(
+    x = as.Date(trt_date, format = "%m/%d/%Y"),  # X position for the label
+    y = Inf,  # Position the label outside the plot area
+    label = "Treatment",  # Label text
+    vjust = 1,  # Adjust vertical position
+    hjust = -0.1,  # Adjust horizontal position
+    color = "black"  # Set the text color to black
+  ) +
+  geom_text(
+    x = as.Date(sac_date, format = "%m/%d/%Y"),  # X position for the label
+    y = Inf,  # Position the label outside the plot area
+    label = "Sacrifice",  # Label text
+    vjust = 1,  # Adjust vertical position
+    hjust = 1.1,  # Adjust horizontal position to the left
+    color = "black"  # Set the text color to black
+  ) +
+  theme(legend.text = element_text(size = 10))  # Adjust legend text size
+
+print(p)
+```
+
+### Median Total Flux and Individual Total Flux by Treatment
+
+```{r, message=FALSE, warning=FALSE, fig.height=6, fig.width=11}
+# Read the data
+processed_data <- read.csv("data/processed/processed_data.csv")
+
+# Group by trt and imaging_date, and calculate the median total_flux for each group
+median_data <- processed_data %>%
+  filter(mouse_number %in% filtered_mice) %>% 
+  group_by(trt, imaging_date) %>%
+  summarise(median_total_flux = median(total_flux, na.rm = TRUE)) %>%
+  mutate(imaging_date = as.Date(imaging_date))
+
+# Define a custom theme for the plot (without vertical grid lines)
+my_theme <- theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12, margin = margin(r = 15)),  # Adjust the margin
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12),
+    panel.grid.major.x = element_blank(),  # Remove vertical grid lines
+    panel.grid.minor.x = element_blank(),  # Remove vertical minor grid lines
+    strip.text.x = element_blank()  # Remove the titles above facets
+  )
+
+# Create the plot, including filtering for mouse_number
+p <- ggplot(data = processed_data %>%
+              filter(mouse_number %in% filtered_mice), 
+            aes(x = as.Date(imaging_date), y = total_flux, color = factor(trt))) +
+  geom_line(data = median_data, aes(x = imaging_date, y = median_total_flux, group = trt), size = 0.9) +  # Connected lines for group medians
+  geom_point(size = 1.3, shape = 16, alpha = 0.5) +  # Points for individual mice
+  labs(x = NULL, y = "Total Flux", color = "Treatment") +
+  scale_y_log10(labels = scales::scientific_format()) +
+  scale_color_manual(
+    values = c(
+      "5" = alpha("#f8766d", 1),  # CCR4 CAR2
+      "6" = alpha("#7cae00", 1),  # CART38
+      "7" = alpha("#00bfc4", 1),  # UTD CART38
+      "8" = alpha("#C3B1E1", 1)   # Untreated
+    ),
+    labels = labels
+  ) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
+  my_theme +
+  facet_wrap(~ trt)
+
+# Print the plot with corrected aesthetics for mouse total_flux points and the legend to the right
+print(p + theme(legend.position = "right", legend.direction = "vertical", legend.box = "vertical"))
+```
+
+## Data Table
+
+```{r, message=FALSE, warnings=FALSE}
+processed_data %>%
+  select(cage_number, mouse_number, trt, manner_of_death, imaging_date, total_flux, avg_radiance) %>% 
+  filter(mouse_number %in% filtered_mice) %>% 
+  filter(!is.na(trt)) %>%
+  mutate(trt = labels[as.character(trt)]) %>% 
+  kable(format = "html") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+## Kaplan-Meier Curve
+
+```{r, message=FALSE, warning=FALSE, fig.height=10, fig.width=11}
+processed_data <- read.csv("data/processed/processed_data.csv")
+
+# Check if processed_data has any rows before proceeding
+if (nrow(processed_data) > 0) {
+  # Filter the data by mouse_number
+  processed_data <- processed_data %>%
+    filter(mouse_number %in% filtered_mice)
+  
+  # Convert the columns to Date format with the format 'month/day/year'
+  processed_data <- processed_data %>%
+    mutate(
+      death_date = as.Date(death_date, format = "%m/%d/%Y"),
+      trt_injection_date = as.Date(trt_injection_date, format = "%m/%d/%Y"),
+      tumor_injection_date = as.Date(tumor_injection_date, format = "%m/%d/%Y")
+    )
+  
+  # Calculate the days_from_trt_to_death using both trt_injection_date and tumor_injection_date
+  processed_data <- processed_data %>%
+    mutate(
+      days_from_trt_to_death = as.numeric(difftime(death_date, trt_injection_date, units = "days")),
+      # Replace NA values in days_from_trt_to_death with the corresponding difference using tumor_injection_date
+      days_from_trt_to_death = ifelse(is.na(days_from_trt_to_death), as.numeric(difftime(death_date, tumor_injection_date, units = "days")), days_from_trt_to_death)
+    )
+  
+  # Create a survival object
+  survival_data <- with(processed_data, Surv(days_from_trt_to_death, event = rep(1, length(trt))))
+  
+  # Check if there are any non-missing observations in survival_data
+  if (any(!is.na(survival_data))) {
+    # Fit Kaplan-Meier survival curves for each treatment group
+    surv_fit <- survfit(survival_data ~ trt, data = processed_data)
+    
+    # Plot Kaplan-Meier curves
+    ggsurvplot(surv_fit, data = processed_data, risk.table = TRUE, pval = TRUE)
+    
+    # Check if the days_from_trt_to_death column exists before selecting it
+    if ("days_from_trt_to_death" %in% colnames(processed_data)) {
+      # Create a table that shows the rounded average days of survival by trt
+      average_days_by_trt <- processed_data %>%
+        group_by(trt) %>%
+        summarize(average_survival_in_days = round(mean(days_from_trt_to_death, na.rm = TRUE)))
+      
+      # Create and print the table
+      average_days_by_trt %>%
+        kable("html") %>%
+        kable_styling(bootstrap_options = "striped", full_width = FALSE)
+    } else {
+      cat("Column 'days_from_trt_to_death' not found in processed_data.")
+    }
+  } else {
+    cat("No non-missing observations for survival data found.")
+  }
+} else {
+  cat("No data available for analysis.")
+}
+
+# Select the columns you want to include in the table and filter by mouse_number
+table_data <- raw_data %>%
+  filter(mouse_number %in% filtered_mice) %>%
+  select(
+    cage_number,
+    mouse_number,
+    trt,
+    manner_of_death
+  )
+
+# Create and print the table
+kable(table_data, "html") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
+
+## ANOVA
+
+Do not take this result seriously, still working on ANOVA + other descriptives info
+
+```{r, message=FALSE, warning=FALSE}
+# Fit an ANOVA model
+anova_model <- aov(total_flux ~ trt, data = processed_data)
+
+# Perform ANOVA analysis
+anova_result <- summary(anova_model)
+
+# Print the ANOVA results
+print(anova_result)
+```
+
+## Spleen and Marrow
+
+```{r, message=FALSE, warning=FALSE, fig.height=10, fig.width=15}
+processed_data <- read.csv("data/processed/processed_data.csv")
+
+bar_plot <- processed_data %>% 
+  filter(mouse_number %in% filtered_mice) %>%
+  mutate(
+    cryovial_spleen_cell_total = coalesce(cryovial_spleen_cell_total, 0),
+    cryovial_marrow_cell_total = coalesce(cryovial_marrow_cell_total, 0)
+  ) %>%
+  ggplot() +
+  geom_bar(aes(x = mouse_number - 0.2, y = cryovial_spleen_cell_total, fill = "Spleen"), stat = "identity", position = "identity", width = 0.4) +
+  geom_bar(aes(x = mouse_number + 0.2, y = cryovial_marrow_cell_total, fill = "Marrow"), stat = "identity", position = "identity", width = 0.4) +
+  scale_fill_manual(values = c("Spleen" = "blue", "Marrow" = "red")) +
+  labs(x = "Mouse Number", y = "Cell Total", fill = "Tissue") +
+  ggtitle("Cryovial Spleen and Marrow Cell Total by Mouse Number") +
+  theme_minimal() +
+  theme(legend.position = "top") +
+  scale_x_continuous(breaks = unique(processed_data$mouse_number), labels = unique(processed_data$mouse_number)) +
+  coord_cartesian(ylim = c(0, max(processed_data$cryovial_spleen_cell_total, processed_data$cryovial_marrow_cell_total) + 10))
+
+# Print the bar plot
+print(bar_plot)
+
+# Select the columns you want to include in the table
+table_data <- processed_data %>%
+  filter(mouse_number %in% filtered_mice) %>% 
+  distinct(trt, mouse_number, .keep_all = TRUE) %>%
+  select(
+    cage_number,
+    mouse_number,
+    trt,
+    manner_of_death,
+    number_of_spleen_cryovials,
+    cryovial_spleen_cell_total,
+    number_of_marrow_cryovials,
+    cryovial_marrow_cell_total
+  ) %>% 
+  mutate(trt = labels[as.character(trt)])
+
+# Format columns to scientific notation
+table_data <- table_data %>%
+  mutate(
+    cryovial_marrow_cell_total = format(cryovial_marrow_cell_total, scientific = TRUE)
+  )
+
+# Create and print the table
+kable(table_data, "html") %>%
+  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+```
