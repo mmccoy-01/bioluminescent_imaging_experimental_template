@@ -1,0 +1,177 @@
+```{r Treatment Plot, message=FALSE, warning=FALSE}
+# Load data
+processed_data <- read.csv("data/processed/processed_data.csv")
+
+ui <- fluidPage(
+  titlePanel("Data Visualization"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("tumor_injection_select", "Tumor Injection", choices = unique(processed_data$tumor_injection)),
+      checkboxInput("facet_wrap", "Facet Wrap", value = TRUE),
+      selectInput("y_variable", "Y-Axis Variable", choices = c("total_flux", "avg_radiance"), selected = "total_flux"),
+      selectInput("calculation_type", "Calculation Type", choices = c("Mean", "Median", "Individual"), selected = "Mean"),
+      checkboxInput("group_points", "Group Points", value = TRUE),
+      selectInput("plot_type", "Plot Type", choices = c("Line Graph", "Bar Graph"), selected = "Line Graph")
+    ),
+    mainPanel(
+      plotlyOutput("total_flux_plot"),
+      tableOutput("count_table")
+    )
+  )
+)
+
+server <- function(input, output) {
+  # Read the data
+  processed_data <- read.csv("data/processed/processed_data.csv")
+
+# Define a custom theme for the plot (without vertical grid lines)
+my_theme <- theme_minimal() +
+  theme(
+    axis.text.y = element_text(size = 12),
+    axis.text.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12, margin = margin(r = 15)),  # Adjust the margin
+    legend.text = element_text(size = 10),
+    legend.title = element_text(size = 12),
+    panel.grid.major.x = element_blank(),  # Remove vertical grid lines
+    panel.grid.minor.x = element_blank()   # Remove vertical minor grid lines
+  )
+
+  # Group by trt and imaging_date, and calculate the mean and median for each group
+  summary_data <- processed_data %>%
+    group_by(trt, imaging_date) %>%
+    summarise(mean_total_flux = mean(total_flux, na.rm = TRUE),
+              mean_avg_radiance = mean(avg_radiance, na.rm = TRUE),
+              median_total_flux = median(total_flux, na.rm = TRUE),
+              median_avg_radiance = median(avg_radiance, na.rm = TRUE)) %>%
+    mutate(imaging_date = as.Date(imaging_date))
+
+output$total_flux_plot <- renderPlotly({
+    y_var <- ifelse(input$y_variable == "total_flux", "Total Flux", "Average Radiance")
+    calculation_type <- input$calculation_type
+    facet_enabled <- input$facet_wrap
+    group_points_enabled <- input$group_points
+
+    plot_type <- input$plot_type
+    
+    # Filter data based on selected tumor injection
+    processed_data_filtered <- processed_data
+    if (!is.null(input$tumor_injection_select)) {
+      processed_data_filtered <- processed_data_filtered %>%
+        filter(tumor_injection == input$tumor_injection_select)
+    }
+
+    # Create the plot
+    p <- ggplot(data = processed_data, 
+                aes(x = as.Date(imaging_date), y = !!sym(input$y_variable), color = factor(trt))) +
+      labs(x = "Imaging Date", y = y_var, color = "Treatment") +
+      scale_color_manual(
+        name = "Treatment",
+        values = c(
+          "1" = alpha("#f8766d", 1),
+          "2" = alpha("#7cae00", 1),
+          "3" = alpha("#00bfc4", 1),
+          "4" = alpha("#C3B1E1", 1)
+        ),
+        labels = labels
+      ) +
+      scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
+      my_theme
+
+    # Conditional y-axis scaling
+    if (input$y_variable == "total_flux") {
+      p <- p + scale_y_log10(labels = scientific_format())
+    } else {
+      p <- p + scale_y_continuous()
+    }
+
+    if (calculation_type == "Mean") {
+      if (plot_type == "Line Graph") {
+        p <- p +
+          geom_line(data = summary_data, aes(x = imaging_date, y = !!sym(paste0("mean_", input$y_variable)), group = trt), linewidth = 0.9)
+      } else if (plot_type == "Bar Graph") {
+        if (facet_enabled) {
+          p <- p +
+            geom_bar(data = summary_data, aes(x = imaging_date, y = !!sym(paste0("mean_", input$y_variable)), fill = factor(trt)), stat = "identity")
+        } else {
+          p <- p +
+            geom_bar(data = summary_data, aes(x = imaging_date, y = !!sym(paste0("mean_", input$y_variable)), fill = factor(trt)), stat = "identity", position = "dodge")
+        }
+      }
+      grouped_points <- summary_data
+      point_variable <- paste0("mean_", input$y_variable)
+    } else if (calculation_type == "Median") {
+      if (plot_type == "Line Graph") {
+        p <- p +
+          geom_line(data = summary_data, aes(x = imaging_date, y = !!sym(paste0("median_", input$y_variable)), group = trt), linewidth = 0.9)
+      } else if (plot_type == "Bar Graph") {
+        if (facet_enabled) {
+          p <- p +
+            geom_bar(data = summary_data, aes(x = imaging_date, y = !!sym(paste0("median_", input$y_variable)), fill = factor(trt)), stat = "identity")
+        } else {
+          p <- p +
+            geom_bar(data = summary_data, aes(x = imaging_date, y = !!sym(paste0("median_", input$y_variable)), fill = factor(trt)), stat = "identity", position = "dodge")
+        }
+      }
+      grouped_points <- summary_data
+      point_variable <- paste0("median_", input$y_variable)
+    } else if (calculation_type == "Individual") {
+      if (plot_type == "Line Graph") {
+        p <- p +
+          geom_line(aes(group = id), alpha = 0.5, size = 0.5)
+      } else if (plot_type == "Bar Graph") {
+        # You can choose an appropriate way to represent individual data as bars
+        # For example, you can use geom_bar with fill based on trt
+      }
+      grouped_points <- processed_data %>%
+        group_by(trt, imaging_date) %>%
+        summarise(x = mean(as.Date(imaging_date)), y = mean(!!sym(input$y_variable))) %>%
+        ungroup()
+      point_variable <- paste0("mean_", input$y_variable)
+    }
+
+    # Toggle for grouping points
+    if (group_points_enabled) {
+      if (plot_type == "Line Graph") {
+        p <- p +
+          geom_point(data = grouped_points, size = 2, aes(x = imaging_date, y = !!sym(point_variable), color = factor(trt)))
+      } else if (plot_type == "Bar Graph") {
+        # You can choose an appropriate way to represent grouped data as bars
+        # For example, you can use geom_bar with fill based on trt
+      }
+    } else {
+      # Show individual points
+      if (plot_type == "Line Graph") {
+        p <- p +
+          geom_point(size = 2, shape = 16, alpha = 0.5, aes(text = id))
+      } else if (plot_type == "Bar Graph") {
+        # You can choose an appropriate way to represent individual data as bars
+        # For example, you can use geom_bar with fill based on trt
+      }
+    }
+
+    # Add facet_wrap if enabled
+    if (facet_enabled) {
+      p <- p + facet_wrap(~ trt)
+    }
+
+    # Convert ggplot to Plotly
+    ggplotly(p) %>%
+      layout(legend = list(orientation = "v", x = 1.05, y = 0.5), hovermode = "x+y")
+  })
+output$count_table <- renderTable({
+  # Group the data by trt and imaging_date and calculate the count of id
+  count_data <- processed_data %>%
+    group_by(trt, imaging_date) %>%
+    summarise(id_count = n()) %>%
+    spread(key = trt, value = id_count, fill = 0)
+
+  # Ensure that the count values are whole numbers with no decimal places
+  count_data <- count_data %>%
+    mutate(across(-imaging_date, ~ as.integer(.)))
+
+  count_data
+})
+}
+
+shinyApp(ui, server)
+```
