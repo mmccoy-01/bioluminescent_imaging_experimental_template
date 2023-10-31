@@ -1,4 +1,4 @@
-```{r Treatment Plot, message=FALSE, warning=FALSE}
+```{r Treatment Plot, message=FALSE, warning=FALSE, fig.height=6, fig.width=11}
 # Load data
 processed_data <- read.csv("data/processed/processed_data.csv")
 
@@ -21,61 +21,59 @@ ui <- fluidPage(
 )
 
 server <- function(input, output) {
-  # Read the data
-  processed_data <- read.csv("data/processed/processed_data.csv")
+  # Load data
+processed_data <- read.csv("data/processed/processed_data.csv")
 
-# Define a custom theme for the plot (without vertical grid lines)
-my_theme <- theme_minimal() +
-  theme(
-    axis.text.y = element_text(size = 12),
-    axis.text.x = element_text(size = 12),
-    axis.title.y = element_text(size = 12, margin = margin(r = 15)),  # Adjust the margin
-    legend.text = element_text(size = 10),
-    legend.title = element_text(size = 12),
-    panel.grid.major.x = element_blank(),  # Remove vertical grid lines
-    panel.grid.minor.x = element_blank()   # Remove vertical minor grid lines
-  )
+  # Define a custom theme for the plot (without vertical grid lines)
+  my_theme <- theme_minimal() +
+    theme(
+      axis.text.y = element_text(size = 12),
+      axis.text.x = element_text(size = 12),
+      axis.title.y = element_text(size = 12, margin = margin(r = 15)),  # Adjust the margin
+      legend.text = element_text(size = 10),
+      legend.title = element_text(size = 12),
+      panel.grid.major.x = element_blank(),  # Remove vertical grid lines
+      panel.grid.minor.x = element_blank()   # Remove vertical minor grid lines
+    )
 
-  # Group by trt and imaging_date, and calculate the mean and median for each group
-  summary_data <- processed_data %>%
-    group_by(trt, imaging_date) %>%
-    summarise(mean_total_flux = mean(total_flux, na.rm = TRUE),
-              mean_avg_radiance = mean(avg_radiance, na.rm = TRUE),
-              median_total_flux = median(total_flux, na.rm = TRUE),
-              median_avg_radiance = median(avg_radiance, na.rm = TRUE)) %>%
-    mutate(imaging_date = as.Date(imaging_date))
-
-output$total_flux_plot <- renderPlotly({
+  output$total_flux_plot <- renderPlotly({
     y_var <- ifelse(input$y_variable == "total_flux", "Total Flux", "Average Radiance")
     calculation_type <- input$calculation_type
     facet_enabled <- input$facet_wrap
     group_points_enabled <- input$group_points
 
     plot_type <- input$plot_type
-    
+
     # Filter data based on selected tumor injection
-    processed_data_filtered <- processed_data
     if (!is.null(input$tumor_injection_select)) {
-      processed_data_filtered <- processed_data_filtered %>%
+      processed_data <- processed_data %>%
         filter(tumor_injection == input$tumor_injection_select)
     }
 
-    # Create the plot
-    p <- ggplot(data = processed_data, 
-                aes(x = as.Date(imaging_date), y = !!sym(input$y_variable), color = factor(trt))) +
-      labs(x = "Imaging Date", y = y_var, color = "Treatment") +
-      scale_color_manual(
-        name = "Treatment",
-        values = c(
+    # Group by trt and imaging_date, and calculate the mean and median for each group
+    summary_data <- processed_data %>%
+      group_by(trt, imaging_date) %>%
+      summarise(mean_total_flux = mean(total_flux, na.rm = TRUE),
+                mean_avg_radiance = mean(avg_radiance, na.rm = TRUE),
+                median_total_flux = median(total_flux, na.rm = TRUE),
+                median_avg_radiance = median(avg_radiance, na.rm = TRUE)) %>%
+      mutate(imaging_date = as.Date(imaging_date))
+
+# Create the plot
+p <- ggplot(data = processed_data, 
+            aes(x = as.Date(imaging_date), y = !!sym(input$y_variable), color = factor(trt))) +
+  labs(x = "Imaging Date", y = y_var, color = "Treatment") +
+  scale_color_manual(
+    name = "Treatment",
+    values = c(
           "1" = alpha("#f8766d", 1),
           "2" = alpha("#7cae00", 1),
           "3" = alpha("#00bfc4", 1),
           "4" = alpha("#C3B1E1", 1)
         ),
-        labels = labels
-      ) +
-      scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
-      my_theme
+  ) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
+  my_theme
 
     # Conditional y-axis scaling
     if (input$y_variable == "total_flux") {
@@ -158,19 +156,26 @@ output$total_flux_plot <- renderPlotly({
     ggplotly(p) %>%
       layout(legend = list(orientation = "v", x = 1.05, y = 0.5), hovermode = "x+y")
   })
-output$count_table <- renderTable({
-  # Group the data by trt and imaging_date and calculate the count of id
-  count_data <- processed_data %>%
-    group_by(trt, imaging_date) %>%
-    summarise(id_count = n()) %>%
-    spread(key = trt, value = id_count, fill = 0)
+  output$count_table <- renderTable({
+    # Filter the data based on the selected tumor injection
+    filtered_data <- processed_data
+    if (!is.null(input$tumor_injection_select)) {
+      filtered_data <- filtered_data %>%
+        filter(tumor_injection == input$tumor_injection_select)
+    }
 
-  # Ensure that the count values are whole numbers with no decimal places
-  count_data <- count_data %>%
-    mutate(across(-imaging_date, ~ as.integer(.)))
+    # Group the filtered data by trt and imaging_date and calculate the count of id
+    count_data <- filtered_data %>%
+      group_by(trt, imaging_date) %>%
+      summarise(id_count = n()) %>%
+      spread(key = trt, value = id_count, fill = 0)
 
-  count_data
-})
+    # Ensure that the count values are whole numbers with no decimal places
+    count_data <- count_data %>%
+      mutate(across(-imaging_date, ~ as.integer(.)))
+
+    count_data
+  })
 }
 
 shinyApp(ui, server)
