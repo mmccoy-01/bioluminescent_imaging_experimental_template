@@ -39,24 +39,24 @@ Here is the folder hierarchy:
 
 ```mermaid
 graph LR
-experiment_name --> experiment_name.Rmd: R Markdown file for knitting experimental documentation into a flexdashboard with shiny app and plotly configuration
-experiment_name --> README.md: Dcoumentation and support file for understanding folder hierarchy
+experiment_name --> experiment_name.Rmd
+experiment_name --> README.md
 experiment_name --> data
 
 data --> imaging
 
 imaging --> processed
 
-processed --> A(week_1) Contains processed Living Image data for Week 1
-processed --> B(week_2) Contains processed Living Image data for Week 2
-processed --> week_1.csv: Contains imaging data for Week 1
-processed --> week_2.csv: Contains imaging data for Week 2
+processed --> A(week_1)
+processed --> B(week_2)
+processed --> week_1.csv
+processed --> week_2.csv
 processed --> ...
 
 imaging --> E(raw)
 
-E(raw) --> C(week_1) Contains unprocessed Living Image data for Week 1
-E(raw) --> D(week_2) Contains unprocessed Living Image data for Week 2
+E(raw) --> C(week_1)
+E(raw) --> D(week_2)
 E(raw) --> ...
 
 data --> cage_cards
@@ -67,13 +67,13 @@ cage_cards --> ...
 
 data --> processed
 
-processed --> processed_data.csv: Contains all experimental data
-processed --> mouse_current_data.csv: Contains currently relevant mouse data for tracking (used for physical printing)
-processed --> anova.txt: ANOVA output
-processed --> descriptives.txt: Descriptives output
+processed --> processed_data.csv
+processed --> mouse_current_data.csv
+processed --> anova.txt
+processed --> descriptives.txt
 
 data --> F(raw)
 
-F(raw) --> raw_data.csv: Contains all experimental subjects' data except imaging_data data and mass data
-F(raw) --> raw_mass.csv: Contains mass of all mice
+F(raw) --> raw_data.csv
+F(raw) --> raw_mass.csv
 ```
