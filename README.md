@@ -19,7 +19,7 @@ Here is the folder hierarchy:
         - *week_1.csv*: Contains imaging data for Week 1
         - *week_2.csv*: Contains imaging data for Week 2
         - ...
-      - **raw/**
+      - **raw/**: (Since processed imaging data combines raw imaging data, you can delete this so as to conserve storage space)
         - *week_1/*: Contains unprocessed Living Image data for Week 1
         - *week_2/*: Contains unprocessed Living Image data for Week 2
         - ...
