@@ -51,19 +51,19 @@ G(processed) --> A(week_1)
 G(processed) --> B(week_2)
 G(processed) --> week_1.csv
 G(processed) --> week_2.csv
-G(processed) --> ...
+G(processed) --> I(...)
 
 imaging --> E(raw)
 
 E(raw) --> C(week_1)
 E(raw) --> D(week_2)
-E(raw) --> ...
+E(raw) --> J(...)
 
 data --> cage_cards
 
 cage_cards --> 000001.png
 cage_cards --> 000002.png
-cage_cards --> ...
+cage_cards --> K(...)
 
 data --> H(processed)
 
