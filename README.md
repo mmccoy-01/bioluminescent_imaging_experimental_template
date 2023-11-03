@@ -39,28 +39,41 @@ Here is the folder hierarchy:
 
 ```mermaid
 graph LR
-  experiment_name/ --> experiment_name.Rmd
-  experiment_name/ --> README.md
-  data/ --> imaging/
-  imaging/ --> processed/
-  processed/ --> week_1/
-  week_1/ --> week_1.csv
-  processed/ --> week_2/
-  week_2/ --> week_2.csv
-  imaging/ --> raw/
-  raw/ --> week_1/
-  week_1/ --> week_1/
-  raw/ --> week_2/
-  week_2/ --> week_2/
-  data/ --> cage_cards/
-  cage_cards/ --> 000001.png
-  cage_cards/ --> 000002.png
-  data/ --> processed/
-  processed/ --> processed_data.csv
-  processed/ --> mouse_current_data.csv
-  processed/ --> anova.txt
-  processed/ --> descriptives.txt
-  data/ --> raw/
-  raw/ --> raw_data.csv
-  raw/ --> raw_mass.csv
+*experiment_name/* --> *experiment_name.Rmd*: R Markdown file for knitting experimental documentation into a flexdashboard with shiny app and plotly configuration
+*experiment_name/* --> *README.md*: Dcoumentation and support file for understanding folder hierarchy
+*experiment_name/* --> *data/*
+
+*data/* --> *imaging/*
+
+*imaging/* --> *processed/*
+
+*processed/* --> *week_1/*: Contains processed Living Image data for Week 1
+*processed/* --> *week_2/*: Contains processed Living Image data for Week 2
+*processed/* --> *week_1.csv*: Contains imaging data for Week 1
+*processed/* --> *week_2.csv*: Contains imaging data for Week 2
+*processed/* --> ...
+
+*imaging/* --> *raw/*
+
+*raw/* --> *week_1/*: Contains unprocessed Living Image data for Week 1
+*raw/* --> *week_2/*: Contains unprocessed Living Image data for Week 2
+*raw/* --> ...
+
+*data/* --> *cage_cards/*
+
+*cage_cards/* --> *000001.png*
+*cage_cards/* --> *000002.png*
+*cage_cards/* --> ...
+
+*data/* --> *processed/*
+
+*processed/* --> *processed_data.csv*: Contains all experimental data
+*processed/* --> *mouse_current_data.csv*: Contains currently relevant mouse data for tracking (used for physical printing)
+*processed/* --> *anova.txt*: ANOVA output
+*processed/* --> *descriptives.txt*: Descriptives output
+
+*data/* --> *raw/*
+
+*raw/* --> *raw_data.csv*: Contains all experimental subjects' data except imaging_data data and mass data
+*raw/* --> *raw_mass.csv*: Contains mass of all mice
 ```
