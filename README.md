@@ -41,40 +41,24 @@ Here is the folder hierarchy:
      
 
 ```mermaid
-graph TD
-  subgraph experiment_name
-    experiment_name.md --> experiment_name.Rmd
-    experiment_name.Rmd --> experiment_name.html
-  end
+graph LR
+  experiment_name.md --> experiment_name.Rmd
+  experiment_name.Rmd --> experiment_name.html
 
-  subgraph data
-    subgraph imaging
-      subgraph processed
-        week_1 --> week_1.csv
-        week_2 --> week_2.csv
-        week_1 --> week_1
-        week_2 --> week_2
-      end
-      subgraph raw
-        week_1 --> week_1
-        week_2 --> week_2
-      end
-    end
+  data --- imaging --- processed --- week_1
+  data --- imaging --- processed --- week_2
+  data --- imaging --- processed --- week_1.csv
+  data --- imaging --- processed --- week_2.csv
 
-    subgraph cage_cards
-      000001.png
-      000002.png
-      ...
-    end
+  data --- imaging --- raw --- week_1
+  data --- imaging --- raw --- week_2
 
-    subgraph processed
-      processed_data.csv
-      mouse_current_data.csv
-    end
+  data --- cage_cards --- 000001.png
+  data --- cage_cards --- 000002.png
 
-    subgraph raw
-      raw_data.csv
-      raw_mass.csv
-    end
-  end
+  data --- processed --- processed_data.csv
+  data --- processed --- mouse_current_data.csv
+
+  data --- raw --- raw_data.csv
+  data --- raw --- raw_mass.csv
 ```
