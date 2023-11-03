@@ -39,29 +39,28 @@ Here is the folder hierarchy:
 
 ```mermaid
 graph LR
-  graph LR
-  experiment_name/
-  experiment_name.Rmd
-  README.md
-  data/
-  imaging/
-  processed/
-  week_1/
-  week_1/
-  week_1.csv
-  week_2/
-  week_2.csv
-  raw/
-  week_1/
-  week_2/
-  cage_cards/
-  000001.png
-  000002.png
-  processed_data.csv
-  mouse_current_data.csv
-  anova.txt
-  descriptives.txt
-  raw/
-  raw_data.csv
-  raw_mass.csv
+  experiment_name/ --> experiment_name.Rmd
+  experiment_name/ --> README.md
+  data/ --> imaging/
+  imaging/ --> processed/
+  processed/ --> week_1/
+  week_1/ --> week_1.csv
+  processed/ --> week_2/
+  week_2/ --> week_2.csv
+  imaging/ --> raw/
+  raw/ --> week_1/
+  week_1/ --> week_1/
+  raw/ --> week_2/
+  week_2/ --> week_2/
+  data/ --> cage_cards/
+  cage_cards/ --> 000001.png
+  cage_cards/ --> 000002.png
+  data/ --> processed/
+  processed/ --> processed_data.csv
+  processed/ --> mouse_current_data.csv
+  processed/ --> anova.txt
+  processed/ --> descriptives.txt
+  data/ --> raw/
+  raw/ --> raw_data.csv
+  raw/ --> raw_mass.csv
 ```
