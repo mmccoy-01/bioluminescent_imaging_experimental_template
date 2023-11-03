@@ -45,13 +45,13 @@ experiment_name --> data
 
 data --> imaging
 
-imaging --> processed
+imaging --> G(processed)
 
-processed --> A(week_1)
-processed --> B(week_2)
-processed --> week_1.csv
-processed --> week_2.csv
-processed --> ...
+G(processed) --> A(week_1)
+G(processed) --> B(week_2)
+G(processed) --> week_1.csv
+G(processed) --> week_2.csv
+G(processed) --> ...
 
 imaging --> E(raw)
 
@@ -65,12 +65,12 @@ cage_cards --> 000001.png
 cage_cards --> 000002.png
 cage_cards --> ...
 
-data --> processed
+data --> H(processed)
 
-processed --> processed_data.csv
-processed --> mouse_current_data.csv
-processed --> anova.txt
-processed --> descriptives.txt
+H(processed) --> processed_data.csv
+H(processed) --> mouse_current_data.csv
+H(processed) --> anova.txt
+H(processed) --> descriptives.txt
 
 data --> F(raw)
 
