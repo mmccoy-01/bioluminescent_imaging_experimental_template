@@ -47,16 +47,16 @@ graph LR
 
 *imaging/* --> *processed/*
 
-*processed/* --> A(*week_1/*:) Contains processed Living Image data for Week 1
-*processed/* --> B(*week_2/*:) Contains processed Living Image data for Week 2
+*processed/* --> A(*week_1/*) Contains processed Living Image data for Week 1
+*processed/* --> B(*week_2/*) Contains processed Living Image data for Week 2
 *processed/* --> *week_1.csv*: Contains imaging data for Week 1
 *processed/* --> *week_2.csv*: Contains imaging data for Week 2
 *processed/* --> ...
 
 *imaging/* --> *raw/*
 
-*raw/* --> C(*week_1/*:) Contains unprocessed Living Image data for Week 1
-*raw/* --> D(*week_2/*:) Contains unprocessed Living Image data for Week 2
+*raw/* --> C(*week_1/*) Contains unprocessed Living Image data for Week 1
+*raw/* --> D(*week_2/*) Contains unprocessed Living Image data for Week 2
 *raw/* --> ...
 
 *data/* --> *cage_cards/*
