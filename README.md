@@ -13,11 +13,6 @@ Here is the folder hierarchy:
   - *experiment_name.Rmd*: R Markdown file for knitting experimental documentation into HTML
   - *experiment_name.html*: HTML file for user-friendly rendering of experimental documentation
 
-  - **cage_cards/**
-    - *000001.png*
-    - *000002.png*
-    - ...
-
   - **data/**
     - **imaging/**
       - **processed/**
@@ -31,11 +26,55 @@ Here is the folder hierarchy:
         - *week_2/*: Contains unprocessed Living Image data for Week 2
         - ...
 
+    - **cage_cards/**
+      - *000001.png*
+      - *000002.png*
+      - ...
+
     - **processed/**
-      - *imaging_data.csv*: Contains imaging data across all weeks
       - *processed_data.csv*: Contains all experimental data
       - *mouse_current_data.csv*: Contains currently relevant mouse data for tracking
 
     - **raw/**
       - *raw_data.csv*: Contains all experimental data except imaging_data.csv
       - *raw_mass.csv*: Contains mass of all mice
+     
+
+```mermaid
+graph TD
+  subgraph experiment_name
+    experiment_name.md --> experiment_name.Rmd
+    experiment_name.Rmd --> experiment_name.html
+  end
+
+  subgraph data
+    subgraph imaging
+      subgraph processed
+        week_1 --> week_1.csv
+        week_2 --> week_2.csv
+        week_1 --> week_1
+        week_2 --> week_2
+      end
+      subgraph raw
+        week_1 --> week_1
+        week_2 --> week_2
+      end
+    end
+
+    subgraph cage_cards
+      000001.png
+      000002.png
+      ...
+    end
+
+    subgraph processed
+      processed_data.csv
+      mouse_current_data.csv
+    end
+
+    subgraph raw
+      raw_data.csv
+      raw_mass.csv
+    end
+  end
+```
