@@ -4,7 +4,11 @@ My goal is to neatly package all experimental aspects together to provide an exh
 
 The top of the .Rmd file must be modified with respect to specific experimental parameters. Then, the .Rmd file is run through flexdashboard and shiny for an interactive and user-friendly report.
 
-*raw_data.csv* and *raw_mass.csv* must be manually edited. The output .csv files from Living Image® are manually added to *data/imaging/raw/week_#/*
+*raw_data.csv* and *raw_mass.csv* must be manually edited.
+
+The output files from Living Image® are manually added to *data/imaging/raw/week_#/*
+
+The processed output files from Living Image® are manually added to *data/imaging/processed/week_#/*. For each week, one file is a .csv and one is a folder containing processed Living Image® data
 
 Here is the folder hierarchy:
 
