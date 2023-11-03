@@ -9,10 +9,8 @@ The top of the .Rmd file must be modified with respect to specific experimental 
 Here is the folder hierarchy:
 
 - **experiment_name/**
-  - *experiment_name.md*: Markdown file for all experimental documentation
-  - *experiment_name.Rmd*: R Markdown file for knitting experimental documentation into HTML
-  - *experiment_name.html*: HTML file for user-friendly rendering of experimental documentation
-
+  - *experiment_name.Rmd*: R Markdown file for knitting experimental documentation into a flexdashboard with shiny app and plotly configuration
+  - *README.md*: Dcoumentation and support file for understanding folder hierarchy
   - **data/**
     - **imaging/**
       - **processed/**
@@ -25,40 +23,47 @@ Here is the folder hierarchy:
         - *week_1/*: Contains unprocessed Living Image data for Week 1
         - *week_2/*: Contains unprocessed Living Image data for Week 2
         - ...
-
     - **cage_cards/**
       - *000001.png*
       - *000002.png*
       - ...
-
     - **processed/**
       - *processed_data.csv*: Contains all experimental data
-      - *mouse_current_data.csv*: Contains currently relevant mouse data for tracking
-
+      - *mouse_current_data.csv*: Contains currently relevant mouse data for tracking (used for physical printing)
+      - *anova.txt*: ANOVA output
+      - *descriptives.txt*: Descriptives output
     - **raw/**
-      - *raw_data.csv*: Contains all experimental data except imaging_data.csv
+      - *raw_data.csv*: Contains all experimental subjects' data except imaging_data data and mass data
       - *raw_mass.csv*: Contains mass of all mice
      
 
 ```mermaid
 graph LR
-  experiment_name.md --> experiment_name.Rmd
-  experiment_name.Rmd --> experiment_name.html
-
-  data --- imaging --- processed --- week_1
-  data --- imaging --- processed --- week_2
-  data --- imaging --- processed --- week_1.csv
-  data --- imaging --- processed --- week_2.csv
-
-  data --- imaging --- raw --- week_1
-  data --- imaging --- raw --- week_2
-
-  data --- cage_cards --- 000001.png
-  data --- cage_cards --- 000002.png
-
-  data --- processed --- processed_data.csv
-  data --- processed --- mouse_current_data.csv
-
-  data --- raw --- raw_data.csv
-  data --- raw --- raw_mass.csv
+  subgraph experiment_name
+    subgraph data
+      subgraph imaging
+        subgraph processed
+          week_1 --> week_1_csv
+          week_2 --> week_2_csv
+        end
+        subgraph raw
+          week_1 --> week_1_unprocessed
+          week_2 --> week_2_unprocessed
+        end
+        processed_data_csv
+        raw_data_csv
+        raw_mass_csv
+      end
+      subgraph cage_cards
+        000001.png
+        000002.png
+        end
+      processed_data_csv
+      mouse_current_data_csv
+      anova_txt
+      descriptives_txt
+    end
+    experiment_name_Rmd
+    README_md
+  end
 ```
