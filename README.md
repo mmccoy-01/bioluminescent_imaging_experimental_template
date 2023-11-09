@@ -31,6 +31,10 @@ Here is the folder hierarchy:
       - *000001.png*
       - *000002.png*
       - ...
+    - **flow/**
+      - *000001.wsp*
+      - *000002.wsp*
+      - ...
     - **processed/**
       - *processed_data.csv*: Contains all experimental data
       - *mouse_current_data.csv*: Contains currently relevant mouse data for tracking (used for physical printing)
@@ -68,6 +72,12 @@ data --> cage_cards
 cage_cards --> 000001.png
 cage_cards --> 000002.png
 cage_cards --> K(...)
+
+data --> flow
+
+flow --> 000001.wsp
+flow --> 000002.wsp
+flow --> L(...)
 
 data --> H(processed)
 
