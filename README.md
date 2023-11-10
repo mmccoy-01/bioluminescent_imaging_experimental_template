@@ -34,8 +34,8 @@ Here is the folder hierarchy:
       - *000002.PNG* (PNG must be capitalized)
       - ...
     - **flow/**
-      - *000001.wsp*
-      - *000001.PNG* (PNG must be capitalized)
+      - *pdx_name.wsp*
+      - *pdx_name.PNG* (PNG must be capitalized)
       - ...
     - **processed/**
       - *processed_data.csv*: Contains all experimental data
@@ -71,14 +71,14 @@ E(raw) --> J(...)
 
 data --> cage_cards
 
-cage_cards --> M(000001.PNG)
+cage_cards --> 000001.PNG
 cage_cards --> 000002.PNG
 cage_cards --> K(...)
 
 data --> flow
 
-flow --> 000001.wsp
-flow --> L(000001.PNG)
+flow --> pdx_name.wsp
+flow --> pdx_name.PNG
 
 data --> H(processed)
 
