@@ -78,8 +78,8 @@ cage_cards --> K(...)
 data --> flow
 
 flow --> 000001.wsp
-flow --> 000002.wsp
-flow --> L(...)
+flow --> 000001.wsp
+flow --> 000001.PNG
 
 data --> H(processed)
 
