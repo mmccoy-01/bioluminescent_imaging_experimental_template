@@ -2,11 +2,13 @@ This is a template I made for making reproducable, replicable, templateable, mod
 
 My goal is to neatly package all experimental aspects together to provide an exhaustive yet succinctly navigable format.
 
-The top of the .Rmd file must be modified with respect to specific experimental parameters. Then, the .Rmd file is run through flexdashboard and shiny for an interactive and user-friendly report.
+The top of the .Rmd file must be modified with respect to specific experimental parameters. Then, the .Rmd file is run using R through flexdashboard and shiny for an interactive and user-friendly report.
 
-*raw_data.csv* and *raw_mass.csv* must be manually edited.
+Just to reiterate: **YOU NEED TO RUN THE .Rmd FILE IN RStudio IN ORDER TO SEE THE DATA IN A NICE USER-FRIENDLY FORMAT!!!**
 
-The output files from Living Image® are manually added to *data/imaging/raw/week_#/*
+*raw_data.csv* and *raw_mass.csv* must be manually edited as the experiment progresses.
+
+The output files from Living Image® are manually added to *data/imaging/raw/week_#/*. After processing, these raw files can be deleted so as to conserve storage space. It's okay, all of the data is still retained in the processed files.
 
 The processed output files from Living Image® are manually added to *data/imaging/processed/week_#/*. For each week, one file is a .csv and one is a folder containing processed Living Image® data
 
@@ -28,8 +30,8 @@ Here is the folder hierarchy:
         - *week_2/*: Contains unprocessed Living Image data for Week 2
         - ...
     - **cage_cards/**
-      - *000001.png*
-      - *000002.png*
+      - *000001.PNG* (PNG must be capitalized)
+      - *000002.PNG* (PNG must be capitalized)
       - ...
     - **flow/**
       - *000001.wsp*
@@ -69,8 +71,8 @@ E(raw) --> J(...)
 
 data --> cage_cards
 
-cage_cards --> 000001.png
-cage_cards --> 000002.png
+cage_cards --> 000001.PNG
+cage_cards --> 000002.PNG
 cage_cards --> K(...)
 
 data --> flow
@@ -85,7 +87,6 @@ H(processed) --> processed_data.csv
 H(processed) --> mouse_current_data.csv
 H(processed) --> anova.txt
 H(processed) --> descriptives.txt
-
 data --> F(raw)
 
 F(raw) --> raw_data.csv
