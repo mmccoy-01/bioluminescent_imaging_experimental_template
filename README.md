@@ -35,7 +35,7 @@ Here is the folder hierarchy:
       - ...
     - **flow/**
       - *000001.wsp*
-      - *000002.wsp*
+      - *000001.PNG* (PNG must be capitalized)
       - ...
     - **processed/**
       - *processed_data.csv*: Contains all experimental data
