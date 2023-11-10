@@ -71,15 +71,14 @@ E(raw) --> J(...)
 
 data --> cage_cards
 
-cage_cards --> 000001.PNG
+cage_cards --> M(000001.PNG)
 cage_cards --> 000002.PNG
 cage_cards --> K(...)
 
 data --> flow
 
 flow --> 000001.wsp
-flow --> 000001.wsp
-flow --> 000001.PNG
+flow --> L(000001.PNG)
 
 data --> H(processed)
 
