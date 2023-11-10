@@ -1,38 +1,44 @@
 ---
-title: "{{name}}"
-status: {{status}}
-sample: {{num}}
+title:
+status:
+sample:
 output:
   flexdashboard::flex_dashboard:
+    source_code: embed
     vertical_layout: fill
     orientation: columns
+    theme: 
+      version: 4
+      bootswatch: minty
 runtime: shiny
 ---
 
-```{r User-Defined Experimental Parameters, message=FALSE}
+```{r user_defined_parameters, message=FALSE}
 # The user defines different variables and parameters that will be specific to the study.
 
-inj_date <- as.Date("%m/%d/%Y", format = "%m/%d/%Y")
+inj_date <- as.Date("na", format = "%m/%d/%Y")
 
-trt_date <- as.Date("%m/%d/%Y", format = "%m/%d/%Y")
+trt_date <- as.Date("na", format = "%m/%d/%Y")
 
-sac_date <- as.Date("%m/%d/%Y", format = "%m/%d/%Y")
+eos_date <- as.Date("na", format = "%m/%d/%Y")
 
-surv_date <- as.Date("na", format = "%m/%d/%Y")
+engraftment_imaging_date <- as.Date("na", format = "%m/%d/%Y")
 
-engraftment_imaging_date <- as.Date("%m/%d/%Y", format = "%m/%d/%Y")
+dates <- as.Date(c("na", "na", "na", "na"), format = "%m/%d/%Y")
 
-dates <- as.Date(c("%m/%d/%Y", "%m/%d/%Y", "%m/%d/%Y", "%m/%d/%Y3"), format = "%m/%d/%Y")
-
-number_of_expansion_mice <- num
-number_of_groups <- num
-mice_per_group <- num
-filtered_mice <- c(num:num)
-labels <- c("1" = "AAA", "2" = "BBB", "3" = "CCC AAA", "4" = "DDD")
+number_of_groups <- #
+mice_per_group <- #
+filtered_mice <- c(#:#)
+labels <- c("1" = "AAA", "2" = "BBB", "3" = "CCC", "4" = "DDD")
 ```
 
 ```{r Load Libraries, message=FALSE}
+# Set root.dir to the current file's directory
+knitr::opts_knit$set(root.dir = dirname(rstudioapi::getSourceEditorContext()$path))
+#setwd(dirname(rstudioapi::getSourceEditorContext()$path)) i run this when i execute code locally by chunk
+
 # Load packages
+library(flexdashboard) # dashboard view for multiple panes
 library(tidyverse) # tidyverse
 library(shiny) # shiny app functionality
 library(kableExtra) # for knitting .rmd tables to .html tables
@@ -42,9 +48,6 @@ library(plotly) # interactive cursor friendly plots
 library(survival) # for survival curves
 library(survminer) # for survival curves
 library(jmv) # performing statistical analyses
-
-# Set the working directory to the current script's directory
-setwd(dirname(rstudioapi::getSourceEditorContext()$path))
 ```
 
 ```{r Data Pre-Processing, message=FALSE, warning=FALSE}
@@ -106,7 +109,7 @@ write_csv(processed_data, file = "data/processed/processed_data.csv")
 ```
 
 ```{r Treatment Assignment, message=FALSE, warning=FALSE}
-# Randomly assign mice to treatment conditions so that each treatment condition has equivalent total_flux between treatments. All of the unassigned remaining mice have the lowest total_flux and are assigned to trt = na aka the expansion group/DDD group.
+# Randomly assign mice to treatment conditions so that each treatment condition has equivalent total_flux between treatments. All of the unassigned remaining mice have the lowest total_flux and are assigned to trt = na aka the expansion group/untreated group. Basically this function runs through 5000 seeds for random group combinations, then performs ANOVAs on the group means for each combination, then returns the seed with the lowest standard deviation of mean total_flux across groups.
 
 # Load data
 processed_data <- read.csv("data/processed/processed_data.csv")
@@ -117,7 +120,62 @@ filtered_data <- processed_data %>%
   arrange(total_flux) %>%
   filter(if (number_of_expansion_mice == 0) TRUE else row_number() <= number_of_expansion_mice)
 
-set.seed(18902)
+# Define the assign_groups function
+assign_groups <- function(data, num_groups, num_per_group) {
+  # Create an empty vector to store group assignments
+  trt <- integer(nrow(data))
+  
+  # Create a data frame to store mean total_flux for each group
+  mean_total_flux <- data.frame(Group = 1:num_groups, Mean_Total_Flux = numeric(num_groups))
+  
+  # Shuffle the data to randomize assignments
+  data <- data[sample(nrow(data)), ]
+  for (i in 1:num_groups) {
+    # Select a subset of data for each group
+    group_data <- data[((i - 1) * num_per_group + 1):(i * num_per_group), ]
+    
+    # Calculate mean total_flux for the group
+    mean_flux <- mean(group_data$total_flux)
+    
+    # Assign the group number to the trt column
+    trt[((i - 1) * num_per_group + 1):(i * num_per_group)] <- i
+    
+    # Store the mean total_flux in the mean_total_flux data frame
+    mean_total_flux[i, 2] <- mean_flux
+  }
+  
+  # Add the trt column to the data frame
+  data$trt <- trt
+  
+  # Return the data frame with group assignments
+  return(list(Data = data, Mean_Total_Flux = mean_total_flux))
+}
+
+# Initialize variables to store the best seed and its corresponding variability
+best_seed <- NULL
+best_variability <- Inf
+
+# Loop through the first 5000 seeds
+for (seed in 1:5000) {
+  set.seed(seed)
+  
+  # Call the function to assign groups using filtered_data
+  result <- assign_groups(filtered_data, number_of_groups, mice_per_group)
+  
+  # Calculate the standard deviation of mean total_flux across groups
+  variability <- sd(result$Mean_Total_Flux$Mean_Total_Flux)
+  
+  # Check if this seed has lower variability than the current best
+  if (variability < best_variability) {
+    best_variability <- variability
+    best_seed <- seed
+  }
+}
+
+# Print the seed with the least variability
+cat("Seed with the least variability:", best_seed, "\n")
+
+set.seed(best_seed)
 
 # Function to assign mice to groups
 assign_groups <- function(data, num_groups, num_per_group) {
@@ -235,7 +293,7 @@ output$total_flux_plot <- renderPlotly({
       processed_data_filtered <- processed_data_filtered %>%
         filter(tumor_injection == input$tumor_injection_select)
     }
-
+  
     # Create the plot
     p <- ggplot(data = processed_data, 
                 aes(x = as.Date(imaging_date), y = !!sym(input$y_variable), color = factor(trt))) +
@@ -253,6 +311,23 @@ output$total_flux_plot <- renderPlotly({
       scale_x_date(date_breaks = "1 month", date_labels = "%b %Y") +
       my_theme
 
+# Add vertical lines
+vertical_lines <- data.frame(
+  date = c(inj_date, trt_date, eos_date),
+  text = c(
+    format(inj_date, format = "%m/%d/%Y"),
+    format(trt_date, format = "%m/%d/%Y"),
+    format(eos_date, format = "%m/%d/%Y")
+  )
+)
+
+# Add vertical lines
+if (plot_type == "Line Graph") {
+  for (i in 1:3) {
+    p <- p + geom_vline(data = vertical_lines[i, ], aes(xintercept = as.numeric(date), text = text))
+  }
+}
+    
     # Conditional y-axis scaling
     if (input$y_variable == "total_flux") {
       p <- p + scale_y_log10(labels = scientific_format())
@@ -354,7 +429,7 @@ shinyApp(ui, server)
 
 ### Kaplan-Meier Curve
 
-```{r Kaplan-Meier Curve, message=FALSE, warning=FALSE, fig.height=10, fig.width=11}
+```{r Kaplan-Meier Curve, eval=FALSE, message=FALSE, warning=FALSE, fig.height=10, fig.width=11}
 processed_data <- read.csv("data/processed/processed_data.csv")
 
 # Check if processed_data has any rows before proceeding
@@ -412,17 +487,53 @@ if (nrow(processed_data) > 0) {
 }
 ```
 
+### Flow Cytometry
+
+```{r Flow Cytometry, results='asis'}
+# Set root.dir to the current file's directory
+current_file_dir <- dirname(rstudioapi::getSourceEditorContext()$path)
+knitr::opts_knit$set(root.dir = current_file_dir)
+
+# Specify the relative directory containing PNG files
+png_directory <- "data/flow"
+
+# Get a list of .PNG files within the specified directory
+png_files <- list.files(file.path(current_file_dir, png_directory), pattern = "\\.PNG$", full.names = TRUE)
+
+# Create a container div for the images
+cat("<div style='text-align: center;'>")
+
+# Loop through the .PNG files and generate HTML content with centered labels above each image
+for (png_file in png_files) {
+  # Get the base name of the PNG file (without the path)
+  file_name <- basename(png_file)
+
+  # Add a label div above the image with increased font size
+  cat(sprintf("<div style='font-size: 18px;'>%s</div>\n", file_name))
+
+  # Create HTML content with an image tag
+  cat(sprintf("<img src='%s' width='700' />\n", png_file))
+}
+
+# Close the container div
+cat("</div>\n")
+```
+
 Column {.tabset data-width=400}
 -----------------------------------------------------------------------
 
 ### IVIS Images
 
 ```{r IVIS Images, results='asis'}
-# Set the file path
+# Set root.dir to the current file's directory
+current_file_dir <- dirname(rstudioapi::getSourceEditorContext()$path)
+knitr::opts_knit$set(root.dir = current_file_dir)
+
+# Specify the relative file path
 file_path <- "data/imaging/processed/"
 
 # Get a list of all subdirectories one level deep within the specified directory
-subdirectories <- list.dirs(file_path, full.names = TRUE, recursive = FALSE)
+subdirectories <- list.dirs(file.path(current_file_dir, file_path), full.names = TRUE, recursive = FALSE)
 
 # Loop through each subdirectory and generate HTML content
 for (subdirectory in subdirectories) {
@@ -511,8 +622,21 @@ p <- ggplot(combined_data, aes(x = mass_date, y = mass, color = factor(trt), gro
   geom_line() +
   geom_point() +
   scale_color_manual(values = trt_colors) +
-  facet_wrap(~trt, scales = "free", ncol = 2) +  # Adjust ncol as needed
-  theme_minimal()
+  facet_wrap(~trt, scales = "free", ncol = 2)  # Adjust ncol as needed
+
+# Add vertical lines
+vertical_lines <- data.frame(
+  date = c(inj_date, trt_date, eos_date),
+  text = c(
+    format(inj_date, format = "%m/%d/%Y"),
+    format(trt_date, format = "%m/%d/%Y"),
+    format(eos_date, format = "%m/%d/%Y")
+  )
+)
+
+for (i in 1:3) {
+  p <- p + geom_vline(data = vertical_lines[i, ], aes(xintercept = as.numeric(date), linetype = "dotted", color = "black", text = text))
+}
 
 # Convert ggplot to plotly
 p <- ggplotly(p)
@@ -536,7 +660,7 @@ order_by_flux <- processed_data %>%
 
 # Filter the data for the plot
 filtered_data <- processed_data %>%
-  filter(id %in% filtered_mice, imaging_date <= engraftment_imaging_date)
+  filter(imaging_date <= engraftment_imaging_date)
 
 # Use the precomputed order in ggplot
 filtered_data %>%
@@ -625,13 +749,45 @@ ggplotly(p)
 
 ### Thawing Cells
 
-#### Tumor:
+#### Tumor
 
-tumor vial info
+##### {pdx_name}
+
+On %m/%d/%Y, # vials of EEE were thawed with a total cell count of #e6 cells and a viability of #%.
+There were #e6 cells per 1mL and that was suspended in #mL for a live total cell concentration of #e6 cells.
+# mice were injected with #e6 cells each at #uL.
+#e6 cells were in #mL from the original #mL suspension.
+# eppendorf tubes were used for exactly # injections.
+Each eppendorf tube had # injections with #mL of #e6 cells from the original #mL cell suspension and #mL of PBS was added to get a total eppendorf volume of #mL for each eppendorf tube.
 
 #### Treatment
 
-treatment vial info
+##### AAA
+
+On %m/%d/%Y, # vials of EEE were thawed with a total cell count of #e6 cells and a viability of #%.
+There were #e6 cells per 1mL and that was suspended in #mL for a live total cell concentration of #e6 cells.
+# mice were injected with #e6 cells each at #uL.
+#e6 cells were in #mL from the original #mL suspension.
+# eppendorf tubes were used for exactly # injections.
+Each eppendorf tube had # injections with #mL of #e6 cells from the original #mL cell suspension and #mL of PBS was added to get a total eppendorf volume of #mL for each eppendorf tube.
+
+##### BBB
+
+On %m/%d/%Y, # vials of EEE were thawed with a total cell count of #e6 cells and a viability of #%.
+There were #e6 cells per 1mL and that was suspended in #mL for a live total cell concentration of #e6 cells.
+# mice were injected with #e6 cells each at #uL.
+#e6 cells were in #mL from the original #mL suspension.
+# eppendorf tubes were used for exactly # injections.
+Each eppendorf tube had # injections with #mL of #e6 cells from the original #mL cell suspension and #mL of PBS was added to get a total eppendorf volume of #mL for each eppendorf tube.
+
+##### CCC
+
+On %m/%d/%Y, # vials of EEE were thawed with a total cell count of #e6 cells and a viability of #%.
+There were #e6 cells per 1mL and that was suspended in #mL for a live total cell concentration of #e6 cells.
+# mice were injected with #e6 cells each at #uL.
+#e6 cells were in #mL from the original #mL suspension.
+# eppendorf tubes were used for exactly # injections.
+Each eppendorf tube had # injections with #mL of #e6 cells from the original #mL cell suspension and #mL of PBS was added to get a total eppendorf volume of #mL for each eppendorf tube.
 
 Column {.tabset data-width=500}
 -----------------------------------------------------------------------
@@ -751,6 +907,9 @@ processed_data <- read.csv("data/processed/processed_data.csv")
 # Read the 'raw_mass.csv' file into a data frame
 raw_mass <- read.csv("data/raw/raw_mass.csv")
 
+# Convert 'mass_date' to date format with specified format
+raw_mass$mass_date <- as.Date(raw_mass$mass_date, format = "%m-%d-%Y")
+
 # Combine 'raw_mass' with 'processed_data'
 processed_data <- left_join(processed_data, raw_mass, by = "id")
 
@@ -809,16 +968,18 @@ if (length(mice_to_euthanize) > 0) {
 
 #### Comments
 
-
-
 ### Cage Cards
 
 ```{r Cage Cards, results='asis'}
-# Set the directory containing PNG files
-png_directory <- "cage_cards"
+# Set root.dir to the current file's directory
+current_file_dir <- dirname(rstudioapi::getSourceEditorContext()$path)
+knitr::opts_knit$set(root.dir = current_file_dir)
+
+# Specify the relative directory containing PNG files
+png_directory <- "data/cage_cards"
 
 # Get a list of .PNG files within the specified directory
-png_files <- list.files(png_directory, pattern = "\\.PNG$", full.names = TRUE)
+png_files <- list.files(file.path(current_file_dir, png_directory), pattern = "\\.PNG$", full.names = TRUE)
 
 # Create a container div for the images
 cat("<div style='text-align: center;'>")
@@ -841,28 +1002,51 @@ cat("</div>\n")
 
 ### Spleen and Marrow Counts 
 
-```{r Spleen and Marrow Counts, message=FALSE, warning=FALSE, fig.height=10, fig.width=15}
+```{r Spleen and Marrow Counts, message=FALSE, warning=FALSE}
+# Sample data, replace with your data loading code
 processed_data <- read.csv("data/processed/processed_data.csv")
 
-bar_plot <- processed_data %>% 
-  filter(id %in% filtered_mice) %>%
-  mutate(
-    cryovial_spleen_cell_total = coalesce(cryovial_spleen_cell_total, 0),
-    cryovial_marrow_cell_total = coalesce(cryovial_marrow_cell_total, 0)
-  ) %>%
-  ggplot() +
-  geom_bar(aes(x = id - 0.2, y = cryovial_spleen_cell_total, fill = "Spleen"), stat = "identity", position = "identity", width = 0.4) +
-  geom_bar(aes(x = id + 0.2, y = cryovial_marrow_cell_total, fill = "Marrow"), stat = "identity", position = "identity", width = 0.4) +
-  scale_fill_manual(values = c("Spleen" = "blue", "Marrow" = "red")) +
-  labs(x = "Mouse Number", y = "Cell Total", fill = "Tissue") +
-  ggtitle("Cryovial Spleen and Marrow Cell Total by Mouse Number") +
-  theme_minimal() +
-  theme(legend.position = "top") +
-  scale_x_continuous(breaks = unique(processed_data$id), labels = unique(processed_data$id)) +
-  coord_cartesian(ylim = c(0, max(processed_data$cryovial_spleen_cell_total, processed_data$cryovial_marrow_cell_total) + 10))
+# Define the UI
+ui <- fluidPage(
+  titlePanel("Spleen vs. Marrow Cell Total"),
+  sidebarLayout(
+    sidebarPanel(
+      width = 2,  # Adjust the width here
+      radioButtons("tissue", "Tissue:", choices = c("Spleen", "Marrow")),
+    ),
+    mainPanel(
+      plotlyOutput("bar_plot")
+    )
+  )
+)
 
-# Print the bar plot
-print(bar_plot)
+server <- function(input, output) {
+  output$bar_plot <- renderPlotly({
+    filtered_data <- processed_data %>%
+      filter(id %in% filtered_mice)
+    
+    tissue_column <- if (input$tissue == "Spleen") "spleen_total_live_cell_count" else "marrow_total_live_cell_count"
+    
+    p <- filtered_data %>%
+      ggplot(aes(x = factor(id), label1 = manner_of_death, label2 = death_date, 
+                 label3 = get(tissue_column), y = ifelse(is.na(get(tissue_column)), 0, get(tissue_column)), 
+                 label4 = if (input$tissue == "Spleen") spleen_cell_viability else marrow_cell_viability, 
+                 label5 = if (input$tissue == "Spleen") spleen_live_cell_count else marrow_live_cell_count, 
+                 label6 = if (input$tissue == "Spleen") spleen_suspension_volume else marrow_suspension_volume, 
+                 label7 = if (input$tissue == "Spleen") number_of_spleen_cryovials else number_of_marrow_cryovials, 
+                 label8 = if (input$tissue == "Spleen") cryovial_spleen_cell_total else cryovial_marrow_cell_total, 
+                 fill = factor(trt))) +
+      geom_col(position = "dodge") +
+      labs(x = "Mouse Number", y = paste(input$tissue, "Cell Total"), fill = "Treatment") +
+      ggtitle(paste(input$tissue, "Cell Total by Mouse Number")) +
+      theme_minimal()
+    
+    ggplotly(p)
+  })
+}
+
+# Run the Shiny app
+shinyApp(ui, server)
 ```
 
 # Statistical Analyses
@@ -935,8 +1119,4 @@ tryCatch(
     }
   }
 )
-```
-# Create and print the table
-kable(table_data, "html") %>%
-  kable_styling(bootstrap_options = "striped", full_width = FALSE)
 ```
