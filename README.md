@@ -18,7 +18,7 @@ Here is the folder hierarchy:
 
 - **experiment_name/**
   - *experiment_name.Rmd*: R Markdown file for knitting experimental documentation into a flexdashboard with shiny app and plotly configuration
-  - *README.md*: Dcoumentation and support file for understanding folder hierarchy
+  - *README.md*: Documentation and support file for understanding folder hierarchy
   - **data/**
     - **imaging/**
       - **processed/**
