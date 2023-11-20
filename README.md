@@ -56,8 +56,8 @@ data --> imaging
 
 imaging --> G(processed)
 
-G(processed) --> A({{%Y-%m-%d}}/)
-G(processed) --> L({{%Y-%m-%d}}.csv)
+G(processed) --> A(%Y-%m-%d/)
+G(processed) --> L(%Y-%m-%d.csv)
 G(processed) --> I(...)
 
 imaging --> E(raw)
