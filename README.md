@@ -55,7 +55,7 @@ data --> imaging
 imaging --> G(processed)
 
 G(processed) --> A(%Y-%m-%d)
-G(processed) --> %Y-%m-%d.csv
+G(processed) --> (%Y-%m-%d.csv)
 G(processed) --> I(...)
 
 imaging --> E(raw)
