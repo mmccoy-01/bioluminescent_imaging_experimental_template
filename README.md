@@ -20,14 +20,11 @@ Here is the folder hierarchy:
   - **data/**
     - **imaging/**
       - **processed/**
-        - *week_1/*: Contains processed Living Image data for Week 1
-        - *week_2/*: Contains processed Living Image data for Week 2
-        - *week_1.csv*: Contains imaging data for Week 1
-        - *week_2.csv*: Contains imaging data for Week 2
+        - *%Y-%m-%d/*: Contains processed Living Image data for %Y-%m-%d
+        - *%Y-%m-%d.csv*: Contains imaging data for %Y-%m-%d
         - ...
       - **raw/**: (Since processed imaging data combines raw imaging data, you can delete this so as to conserve storage space)
-        - *week_1/*: Contains unprocessed Living Image data for Week 1
-        - *week_2/*: Contains unprocessed Living Image data for Week 2
+        - *%Y-%m-%d/*: Contains unprocessed Living Image data for %Y-%m-%d
         - ...
     - **cage_cards/**
       - *000001.PNG* (PNG must be capitalized)
@@ -57,16 +54,13 @@ data --> imaging
 
 imaging --> G(processed)
 
-G(processed) --> A(week_1)
-G(processed) --> B(week_2)
-G(processed) --> week_1.csv
-G(processed) --> week_2.csv
+G(processed) --> A(%Y-%m-%d)
+G(processed) --> %Y-%m-%d.csv
 G(processed) --> I(...)
 
 imaging --> E(raw)
 
-E(raw) --> C(week_1)
-E(raw) --> D(week_2)
+E(raw) --> C(%Y-%m-%d)
 E(raw) --> J(...)
 
 data --> cage_cards
