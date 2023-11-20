@@ -54,13 +54,13 @@ data --> imaging
 
 imaging --> G(processed)
 
-G(processed) --> A(%Y-%m-%d)
+G(processed) --> A(%Y-%m-%d/)
 G(processed) --> L(%Y-%m-%d.csv)
 G(processed) --> I(...)
 
 imaging --> E(raw)
 
-E(raw) --> C(%Y-%m-%d)
+E(raw) --> C(%Y-%m-%d/)
 E(raw) --> J(...)
 
 data --> cage_cards
