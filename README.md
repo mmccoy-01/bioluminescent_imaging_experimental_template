@@ -10,9 +10,9 @@ Just to reiterate: **YOU NEED TO RUN THE .Rmd FILE IN RStudio IN ORDER TO SEE TH
 
 *raw_data.csv* and *raw_mass.csv* must be manually edited as the experiment progresses.
 
-The output files from Living Image® are manually added to *data/imaging/raw/%Y-%m-%d/*. After processing, these raw files can be deleted so as to conserve storage space. It's okay, all of the data is still retained in the processed files.
+The output files from Living Image® are manually added to *data/imaging/raw/{{%Y-%m-%d}}/*. After processing, these raw files can be deleted so as to conserve storage space. It's okay, all of the data is still retained in the processed files.
 
-The processed output files from Living Image® are manually added to *data/imaging/processed/%Y-%m-%d/*. For each week, one file is a .csv and one is a folder containing processed Living Image® data
+The processed output files from Living Image® are manually added to *data/imaging/processed/{{%Y-%m-%d}}/*. For each week, one file is a .csv and one is a folder containing processed Living Image® data
 
 Here is the folder hierarchy:
 
@@ -22,11 +22,11 @@ Here is the folder hierarchy:
   - **data/**
     - **imaging/**
       - **processed/**
-        - *%Y-%m-%d/*: Contains processed Living Image data for %Y-%m-%d
-        - *%Y-%m-%d.csv*: Contains imaging data for %Y-%m-%d
+        - *{{%Y-%m-%d}}/*: Contains processed Living Image data for {{%Y-%m-%d}}
+        - *{{%Y-%m-%d}}.csv*: Contains imaging data for {{%Y-%m-%d}}
         - ...
       - **raw/**: (Since processed imaging data combines raw imaging data, you can delete this so as to conserve storage space)
-        - *%Y-%m-%d/*: Contains unprocessed Living Image data for %Y-%m-%d
+        - *{{%Y-%m-%d}}/*: Contains unprocessed Living Image data for {{%Y-%m-%d}}
         - ...
     - **cage_cards/**
       - *000001.PNG* (PNG must be capitalized)
@@ -56,8 +56,8 @@ data --> imaging
 
 imaging --> G(processed)
 
-G(processed) --> A(%Y-%m-%d/)
-G(processed) --> L(%Y-%m-%d.csv)
+G(processed) --> A({{%Y-%m-%d}}/)
+G(processed) --> L({{%Y-%m-%d}}.csv)
 G(processed) --> I(...)
 
 imaging --> E(raw)
