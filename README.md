@@ -10,9 +10,9 @@ Just to reiterate: **YOU NEED TO RUN THE .Rmd FILE IN RStudio IN ORDER TO SEE TH
 
 *raw_data.csv* and *raw_mass.csv* must be manually edited as the experiment progresses.
 
-The output files from Living Image® are manually added to *data/imaging/raw/week_#/*. After processing, these raw files can be deleted so as to conserve storage space. It's okay, all of the data is still retained in the processed files.
+The output files from Living Image® are manually added to *data/imaging/raw/%Y-%m-%d/*. After processing, these raw files can be deleted so as to conserve storage space. It's okay, all of the data is still retained in the processed files.
 
-The processed output files from Living Image® are manually added to *data/imaging/processed/week_#/*. For each week, one file is a .csv and one is a folder containing processed Living Image® data
+The processed output files from Living Image® are manually added to *data/imaging/processed/%Y-%m-%d/*. For each week, one file is a .csv and one is a folder containing processed Living Image® data
 
 Here is the folder hierarchy:
 
