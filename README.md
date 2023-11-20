@@ -1,3 +1,5 @@
+# Load the .Rmd file into R, download the necessary packages, then run document to see the experiment.
+
 This is a template I made for making reproducable, replicable, templateable, modular, and accurate experimental documentation for studies involving bioluminescent imaging.
 
 My goal is to neatly package all experimental aspects together to provide an exhaustive yet succinctly navigable format.
