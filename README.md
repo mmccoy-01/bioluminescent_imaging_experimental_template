@@ -1,6 +1,11 @@
+# Summary
+
+![](data/processed/group.PNG)
+![](data/processed/individual.PNG)
+
 # Load the .Rmd file into R, download the necessary packages, then run document to see the experiment.
 
-This is a template I made for making reproducible, replicable, templateable, modular, and accurate experimental documentation for studies involving bioluminescent imaging.
+This is a template I made for making reproducable, replicable, templateable, modular, and accurate experimental documentation for studies involving bioluminescent imaging.
 
 My goal is to neatly package all experimental aspects together to provide an exhaustive yet succinctly navigable format.
 
@@ -10,15 +15,15 @@ Just to reiterate: **YOU NEED TO RUN THE .Rmd FILE IN RStudio IN ORDER TO SEE TH
 
 *raw_data.csv* and *raw_mass.csv* must be manually edited as the experiment progresses.
 
-The output files from Living Image® are manually added to *data/imaging/raw/{{%Y-%m-%d}}/*. After processing, these raw files can be deleted so as to conserve storage space. It's okay, all of the data is still retained in the processed files.
+The output files from Living Image® are manually added to the path *data/imaging/raw/{{%Y-%m-%d}}/*. After processing, these raw files can be deleted so as to conserve storage space. It's okay, all of the data is still retained in the processed files.
 
-The processed output files from Living Image® are manually added to *data/imaging/processed/{{%Y-%m-%d}}/*. For each week, one file is a .csv and one is a folder containing processed Living Image® data
+The processed output files from Living Image® are manually added to the path *data/imaging/processed/{{%Y-%m-%d}}/*. For each week, one file is a .csv and one is a folder containing processed Living Image® data.
 
 Here is the folder hierarchy:
 
 - **experiment_name/**
   - *experiment_name.Rmd*: R Markdown file for knitting experimental documentation into a flexdashboard with shiny app and plotly configuration
-  - *README.md*: Documentation and support file for understanding folder hierarchy
+  - *README.md*: Documentation and support file for understanding experimental nuances amd folder hierarchy
   - **data/**
     - **imaging/**
       - **processed/**
@@ -41,6 +46,9 @@ Here is the folder hierarchy:
       - *mouse_current_data.csv*: Contains currently relevant mouse data for tracking (used for physical printing)
       - *anova.txt*: ANOVA output
       - *descriptives.txt*: Descriptives output
+      - *spleen_images/*: Contains images of harvested spleens
+      - *individual.PNG*: Line plot of individual mice colored by treatment (PNG must be capitalized)
+      - *group.PNG*: Line plot of mice grouped and colored by treatment (PNG must be capitalized)
     - **raw/**
       - *raw_data.csv*: Contains all experimental subjects' data except imaging_data data and mass data
       - *raw_mass.csv*: Contains mass of all mice
@@ -82,6 +90,10 @@ H(processed) --> processed_data.csv
 H(processed) --> mouse_current_data.csv
 H(processed) --> anova.txt
 H(processed) --> descriptives.txt
+H(processed) --> spleen_images
+H(processed) --> individual.PNG
+H(processed) --> group.PNG
+
 data --> F(raw)
 
 F(raw) --> raw_data.csv
