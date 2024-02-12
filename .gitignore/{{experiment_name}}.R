@@ -33,6 +33,10 @@ pal <- c("Non-study" = "#000000", "na" = "#f8766d", "na" = "#7cae00", "na" = "#0
 
 # Link to organization logo
 src <- "na"
+
+# Save descriptives and anova stat outputs as a .txt file? y or n
+# Default is n to stop the .txt from constantly being overwritten when the .Rmd file is ran
+save_output <- "n"
 ```
 
 ```{r Load Libraries, message=FALSE}
@@ -44,8 +48,7 @@ knitr::opts_knit$set(root.dir = dirname(rstudioapi::getSourceEditorContext()$pat
 library(flexdashboard) # dashboard view for multiple panes
 library(tidyverse) # tidyverse
 library(shiny) # shiny app functionality
-library(kableExtra) # for knitting .rmd tables to .html tables
-library(DT) # for rendering tables for cases when kable does not work
+library(DT) # for rendering tables
 library(scales) # scale functions for customizing visualizations
 library(plotly) # interactive cursor friendly plots
 library(survival) # for survival curves
@@ -112,16 +115,15 @@ write_csv(processed_data, file = "data/processed/processed_data.csv")
 ```
 
 ```{r Treatment Assignment, message=FALSE, warning=FALSE}
-# Randomly assign mice to treatment conditions so that each treatment condition has equivalent total_flux between treatments. All of the unassigned remaining mice have the lowest total_flux and are assigned to trt = na aka the expansion group/untreated group.
+# Using the already user-defined filtered_mice, randomly assign mice to treatment conditions so that each treatment condition has equivalent total_flux between treatments. All of the filtered/unassigned remaining mice are assigned to na which gets updated to trt_factor = 0 aka the non-study/expansion group.
 
 # Load data
 processed_data <- read.csv("data/processed/processed_data.csv")
 
 filtered_data <- processed_data %>%
-  filter(imaging_date == engraftment_imaging_date) %>%
+  filter(imaging_date == engraftment_imaging_date, id %in% filtered_mice) %>%
   distinct(id, .keep_all = TRUE) %>%
-  arrange(total_flux) %>%
-  filter(if (number_of_expansion_mice == 0) TRUE else row_number() <= number_of_expansion_mice)
+  arrange(total_flux)
 
 # Define the assign_groups function
 assign_groups <- function(data, num_groups, num_per_group) {
@@ -183,7 +185,7 @@ set.seed(best_seed)
 # Function to assign mice to groups
 assign_groups <- function(data, num_groups, num_per_group) {
   # Create an empty vector to store group assignments
-  trt <- integer(nrow(data))
+  trt_factor <- integer(nrow(data))
   
   # Create a data frame to store mean total_flux for each group
   mean_total_flux <- data.frame(Group = 1:num_groups, Mean_Total_Flux = numeric(num_groups))
@@ -197,15 +199,15 @@ assign_groups <- function(data, num_groups, num_per_group) {
     # Calculate mean total_flux for the group
     mean_flux <- mean(group_data$total_flux)
     
-    # Assign the group number to the trt column
-    trt[((i - 1) * num_per_group + 1):(i * num_per_group)] <- i
+    # Assign the group number to the trt_factor column
+    trt_factor[((i - 1) * num_per_group + 1):(i * num_per_group)] <- i
     
     # Store the mean total_flux in the mean_total_flux data frame
     mean_total_flux[i, 2] <- mean_flux
   }
   
-  # Add the trt column to the data frame
-  data$trt <- trt
+  # Add the trt_factor column to the data frame
+  data$trt_factor <- trt_factor
   
   # Return the data frame with group assignments
   return(list(Data = data, Mean_Total_Flux = mean_total_flux))
@@ -223,7 +225,16 @@ processed_data <- processed_data %>%
   select(id, trt_factor, everything()) %>%
   mutate(trt = factor(trt_factor, levels = names(labels), labels = labels)) %>%
   relocate(trt_factor, .before = trt_injection_vial) %>% 
-  relocate(trt, .before = trt_injection_vial)
+  relocate(trt, .before = trt_injection_vial) %>%
+  mutate(imaging_date = format(as.POSIXct(imaging_date, tz = "GMT"), "%Y/%m/%d"))
+  
+# EXAMPLE CODE FOR REPLACING id = 6 WITH ID = 23
+#processed_data <- processed_data %>%
+  #mutate(imaging_date = as.Date(imaging_date, format = "%Y/%m/%d")) %>%
+  #mutate(
+    #trt_factor = if_else(id == 23 & imaging_date > as.Date("2023-12-14"), first(trt_factor[id == 6]), trt_factor),
+    #trt = if_else(id == 23 & imaging_date > as.Date("2023-12-14"), first(trt[id == 6]), trt)
+  #)
   
 # Write the 'processed_data' data frame to a CSV file
 write_csv(processed_data, file = "data/processed/processed_data.csv")
@@ -402,61 +413,90 @@ shinyApp(ui, server)
 ### Kaplan-Meier Curve
 
 ```{r Kaplan-Meier Curve, eval=FALSE, message=FALSE, warning=FALSE, fig.height=10, fig.width=11}
-processed_data <- read.csv("data/processed/processed_data.csv")
-
-# Check if processed_data has any rows before proceeding
-if (nrow(processed_data) > 0) {
-  # Filter the data by id
-  processed_data <- processed_data %>%
-    filter(id %in% filtered_mice)
-  
-  # Convert the columns to Date format with the format 'month/day/year'
-  processed_data <- processed_data %>%
+# Load data
+processed_data <- read.csv("data/processed/processed_data.csv") %>%
+  distinct(id, trt, death_date, trt_injection_date) %>% 
     mutate(
       death_date = as.Date(death_date, format = "%m/%d/%Y"),
       trt_injection_date = as.Date(trt_injection_date, format = "%m/%d/%Y"),
-      tumor_injection_date = as.Date(tumor_injection_date, format = "%m/%d/%Y")
+      event = ifelse(!is.na(death_date), 1, 0),
+      time = ifelse(!is.na(death_date), as.numeric(difftime(death_date, trt_injection_date, units = "days")), as.numeric(difftime(Sys.Date(), trt_injection_date, units = "days")))
     )
+
+# Specify the data that have been used to fit the survival curves
+# This line is needed otherwise object "processed_data" is not found
+data(processed_data)
+
+kmcurve <- survfit(Surv(time, event)~trt, data = processed_data)
+
+ggsurvplot(kmcurve, data = processed_data, xlim = c(0, 100), break.x.by = 7, ylab = "", xlab = "",
+		   pval = TRUE,
+		   risk.table = TRUE,
+		   risk.table.title = "",
+		   legend.labs = labels,
+		   legend.title = "",
+		   surv.scale = "percent",
+		   palette = pal,
+		   title = "",
+		   risk.table.height = .20)
+
+# Create a new plot area for the summary
+# This prevents the survival curve plot from occluding the printed summary_table
+par(mar = c(0, 0, 0, 0))
+plot.new()
+
+# Get the summary table
+summary_table <- summary(kmcurve, times = seq(0, 100, 7))
+
+# Print the formatted summary
+print(summary_table, digits = 3)
+```
+
+### Spleen and Marrow Counts 
+
+```{r Spleen and Marrow Counts, message=FALSE, warning=FALSE}
+plotly::renderPlotly({
   
-  # Calculate the days_from_trt_to_death using both trt_injection_date and tumor_injection_date
-  processed_data <- processed_data %>%
-    mutate(
-      days_from_trt_to_death = as.numeric(difftime(death_date, trt_injection_date, units = "days")),
-      # Replace NA values in days_from_trt_to_death with the corresponding difference using tumor_injection_date
-      days_from_trt_to_death = ifelse(is.na(days_from_trt_to_death), as.numeric(difftime(death_date, tumor_injection_date, units = "days")), days_from_trt_to_death)
+  # Load the processed data
+processed_data <- read.csv("data/processed/processed_data.csv") %>%
+  distinct(id, trt, spleen_total_live_cell_count, number_of_spleen_cryovials, cryovial_spleen_cell_total, spleen_cell_viability, manner_of_death, death_date)
+  
+plot <- plot_ly(
+  data = processed_data,
+  x = ~id,
+  y = ~spleen_total_live_cell_count,
+  type = "bar",
+  color = ~trt, colors = pal,
+  marker = list(line = list(width = 2)),  # Adjust the width of the bars
+  hoverinfo = "text",
+              text = ~paste(
+              "ID: ", id,
+              "<br>Total Live Spleen Count:", sprintf("%.2e", spleen_total_live_cell_count),
+              "<br>Viability:", spleen_cell_viability,
+              "<br>", number_of_spleen_cryovials, "cryovial(s) at", sprintf("%.2e", cryovial_spleen_cell_total), " cells each",
+              "<br>Death date:", death_date,
+              "<br>Manner of death:", manner_of_death
+                                                        )
+  ) %>%
+  layout(
+    xaxis = list(title = "Mouse ID"),
+    yaxis = list(title = "Spleen Total Live Cell Count"),
+    images = list(
+      source = src,
+      xref = "paper",
+      yref = "paper",
+      x = 0,
+      y = 1,
+      sizex = 0.2,
+      sizey = 0.2,
+      opacity = 0.8
     )
-  
-  # Create a survival object
-  survival_data <- with(processed_data, Surv(days_from_trt_to_death, event = rep(1, length(trt))))
-  
-  # Check if there are any non-missing observations in survival_data
-  if (any(!is.na(survival_data))) {
-    # Fit Kaplan-Meier survival curves for each treatment group
-    surv_fit <- survfit(survival_data ~ trt, data = processed_data)
-    
-    # Plot Kaplan-Meier curves
-    ggsurvplot(surv_fit, data = processed_data, risk.table = TRUE, pval = TRUE)
-    
-    # Check if the days_from_trt_to_death column exists before selecting it
-    if ("days_from_trt_to_death" %in% colnames(processed_data)) {
-      # Create a table that shows the rounded average days of survival by trt
-      average_days_by_trt <- processed_data %>%
-        group_by(trt) %>%
-        summarize(average_survival_in_days = round(mean(days_from_trt_to_death, na.rm = TRUE)))
-      
-      # Create and print the table
-      average_days_by_trt %>%
-        kable("html") %>%
-        kable_styling(bootstrap_options = "striped", full_width = FALSE)
-    } else {
-      cat("Column 'days_from_trt_to_death' not found in processed_data.")
-    }
-  } else {
-    cat("No non-missing observations for survival data found.")
-  }
-} else {
-  cat("No data available for analysis.")
-}
+  ) %>%
+  config(scrollZoom = TRUE, modeBarButtonsToAdd = list('drawopenpath'))
+
+# Display the Plotly plot
+print(plot)
+})
 ```
 
 ### Flow Cytometry
@@ -540,22 +580,22 @@ for (subdirectory in subdirectories) {
 
 ### Data Table
 
-```{r Mouse Current Status Table, message=FALSE, warning=FALSE}
+```{r Data Table, message=FALSE, warning=FALSE}
 # Load data
 processed_data <- read.csv("data/processed/processed_data.csv")
 
 # Select the desired columns and format trt
 most_recent_data <- processed_data %>%
   filter(id %in% filtered_mice) %>%
-  select(cage_number, id, ear_punch, trt, imaging_date, total_flux, avg_radiance, death_date, manner_of_death) %>%
-  mutate(trt = labels[as.character(trt)])
+  select(cage_number, id, ear_punch, trt, imaging_date, total_flux, avg_radiance, death_date, manner_of_death)
 
 # Create a .csv file of current mice data with the most recent imaging_date
-most_recent_data %>%
+processed_data %>%
+  select(cage_number, id, ear_punch, trt, imaging_date, total_flux, avg_radiance, death_date, manner_of_death) %>% 
   group_by(id) %>%
   arrange(desc(imaging_date)) %>%
   slice(1) %>%  # Keep only the rows with the most recent imaging_date for each id
-  select(cage_number, id, trt, imaging_date, total_flux, avg_radiance, death_date, manner_of_death) %>%
+  select(cage_number, id, ear_punch, trt, imaging_date, total_flux, avg_radiance, death_date, manner_of_death) %>%
   write.csv(file = "data/processed/current_mice_data.csv", row.names = FALSE)
 
 # Create an interactive DataTable with initial sorting and exclude the ear_punch column
@@ -604,7 +644,7 @@ p
 
 #### Engraftment Status
 
-```{r Engraftment Status, message=FALSE, warning=FALSE, fig.height=6, fig.width=11}
+```{r Engraftment Status, message=FALSE, warning=FALSE, , fig.height=6, fig.width=9.5}
 processed_data <- read.csv("data/processed/processed_data.csv")
 
 # Precompute the order of 'id' based on 'total_flux' for the engraftment_imaging_date
@@ -650,8 +690,7 @@ table_data <- data.frame(
 )
 
 # Print the table
-kable(table_data, format = "html") %>%
-  kable_styling(bootstrap_options = "striped", full_width = FALSE)
+table_data
 
 # Find the mouse numbers that are not engrafted, check if there are non-engrafted mice, and return the numbers
 processed_data %>%
@@ -668,33 +707,24 @@ processed_data %>%
 
 #### Treatment Assignment Plot From Engraftment Imaging Date
 
-```{r Treatment Assignment Plot, message=FALSE, warning=FALSE}
+```{r Treatment Assignment Plot From Engraftment Imaging Date, message=FALSE, warning=FALSE, fig.height=6, fig.width=9.5}
 # Load data
 processed_data <- read.csv("data/processed/processed_data.csv")
 
-trt_means <- processed_data %>%
-  filter(imaging_date == engraftment_imaging_date) %>%
-  group_by(trt_factor, trt) %>%
-  summarize(mean_total_flux = mean(total_flux))
+# Convert trt to factor with levels sorted by trt_factor
+processed_data$trt <- factor(processed_data$trt, levels = unique(processed_data$trt[order(processed_data$trt_factor)]))
 
-trt_means
-
-# Create the plot with hoverinfo and color
-plot <- processed_data %>% 
-  filter(imaging_date == engraftment_imaging_date) %>%
-  mutate(trt = reorder(trt, trt_factor)) %>%
-  plot_ly(x = ~reorder(trt, trt_factor), y = ~total_flux, type = 'scatter', mode = 'markers', 
-          color = ~as.factor(trt),  # Use color instead of marker
-          colors = pal,  # Define colors
-          text = ~paste("ID: ", id),
-          hoverinfo = "text+y")
-
-# Add title and axis labels
-plot <- plot %>% layout(xaxis = list(title = "Treatment"),
-                        yaxis = list(title = "Flux [p/s]"))
+# Create the ggplot
+plot <- ggplot(data = processed_data %>% filter(imaging_date == engraftment_imaging_date),
+       aes(x = trt, y = total_flux, color = trt, label = id)) +
+  geom_jitter(position = position_dodge2(width = 0.7), size = 3) +  # Decrease the width for less separation
+  geom_text(position = position_dodge2(width = 0.7), vjust = -1, size = 3) +  # Adjust vjust to move the label up
+  scale_color_manual(values = pal, breaks = unique(processed_data$trt)) +  # Define colors and arrange the order
+  labs(x = "Treatment", y = "Flux [p/s]", color = "Treatment") +  # Rename the legend title
+  theme_minimal()
 
 # Display the plot
-plot
+print(plot)
 ```
 
 ### Thawing Cells
@@ -734,21 +764,22 @@ processed_data <- read.csv("data/processed/processed_data.csv")
 scatterplot <- processed_data %>%
   arrange(manner_of_death) %>%  # Arrange data to ensure NA is at the end
   distinct(trt, id, .keep_all = TRUE) %>% 
-  ggplot(aes(x = factor(cage_number), y = factor(trt, labels = labels))) +  # Use labels here
-  geom_jitter(
-    aes(color = ifelse(is.na(manner_of_death) | manner_of_death == "", "Alive", "Dead")),
+  ggplot(aes(x = factor(cage_number), y = reorder(trt, -id))) +  # Use reorder to order trt by id
+  geom_point(
+    aes(color = factor(ifelse(is.na(manner_of_death) | manner_of_death == "", "Alive", "Dead"))),
     size = 3,
     position = position_dodge2(width = 0.5),  # Adjust width as needed
     alpha = 0.7
   ) +
   geom_text(
-    aes(label = as.character(id)),
-    position = position_dodge2(width = 0.5),  # Match the jitter width
+    aes(label = as.character(id), color = factor(ifelse(is.na(manner_of_death) | manner_of_death == "", "Alive", "Dead"))),
+    position = position_dodge2(width = 0.5),  # Align with the jittered points
     vjust = -1,  # Adjust vertical position to add space
     size = 3
   ) +
   scale_color_manual(
-    values = c("Dead" = "red", "Alive" = "green")
+    values = c("Dead" = "red", "Alive" = "green"),
+    guide = guide_legend(title = "Status")
   ) +
   labs(x = "Cage Number", y = "Treatment", color = "Status") +
   theme_minimal() +
@@ -778,12 +809,12 @@ processed_data$mass_date <- as.Date(processed_data$mass_date, format="%m/%d/%Y")
 processed_data$death_date <- as.Date(processed_data$death_date, format="%m/%d/%Y")
 
 # Check if all mice are dead based on the 'manner_of_death' column
-all_dead <- all(!is.na(processed_data$manner_of_death))
+any_alive <- any(is.na(processed_data$death_date))
 
 # Find the most recent imaging_date
 most_recent_imaging_date <- max(processed_data$imaging_date, na.rm = TRUE)
 
-if (!all_dead) {
+if (any_alive) {
   # Find the oldest and newest mass_date for each mouse, excluding mice with missing mass_date
   mass_date_summary <- processed_data %>%
     filter(!is.na(mass_date)) %>%
@@ -868,60 +899,6 @@ for (png_file in png_files) {
 cat("</div>\n")
 ```
 
-### Spleen and Marrow Counts 
-
-```{r Spleen and Marrow Counts, message=FALSE, warning=FALSE}
-# Sample data, replace with your data loading code
-processed_data <- read.csv("data/processed/processed_data.csv")
-
-# Define the UI
-ui <- fluidPage(
-  titlePanel("Spleen vs. Marrow Cell Total"),
-  sidebarLayout(
-    sidebarPanel(
-      width = 2,  # Adjust the width here
-      checkboxInput("filter", "Include Non-Study Mice", value = FALSE),
-      radioButtons("tissue", "Tissue:", choices = c("Spleen", "Marrow")),
-    ),
-    mainPanel(
-      plotlyOutput("bar_plot")
-    )
-  )
-)
-
-server <- function(input, output) {
-  output$bar_plot <- renderPlotly({
-    filtered_data <- if (input$filter) {
-      processed_data
-    } else {
-      processed_data %>%
-        filter(trt == "Non-study")
-    }
-    
-    tissue_column <- if (input$tissue == "Spleen") "spleen_total_live_cell_count" else "marrow_total_live_cell_count"
-    
-    p <- filtered_data %>%
-      ggplot(aes(x = factor(id), label1 = manner_of_death, label2 = death_date, 
-                 label3 = get(tissue_column), y = ifelse(is.na(get(tissue_column)), 0, get(tissue_column)), 
-                 label4 = if (input$tissue == "Spleen") spleen_cell_viability else marrow_cell_viability, 
-                 label5 = if (input$tissue == "Spleen") spleen_live_cell_count else marrow_live_cell_count, 
-                 label6 = if (input$tissue == "Spleen") spleen_suspension_volume else marrow_suspension_volume, 
-                 label7 = if (input$tissue == "Spleen") number_of_spleen_cryovials else number_of_marrow_cryovials, 
-                 label8 = if (input$tissue == "Spleen") cryovial_spleen_cell_total else cryovial_marrow_cell_total, 
-                 fill = factor(trt))) +
-      geom_col(position = "dodge") +
-      labs(x = "Mouse Number", y = paste(input$tissue, "Cell Total"), fill = "Treatment") +
-      ggtitle(paste(input$tissue, "Cell Total by Mouse Number")) +
-      theme_minimal()
-    
-    ggplotly(p)
-  })
-}
-
-# Run the Shiny app
-shinyApp(ui, server)
-```
-
 # Statistical Analyses
 
 Column
@@ -947,8 +924,11 @@ descriptives <- jmv::descriptives(
 
 descriptives
 
-# save descriptives as a .txt file
-capture.output(descriptives, file = "data/processed/descriptives.txt", append = TRUE)
+# Check if save_output is equal to "y"
+if (save_output == "y") {
+  # Save descriptives as a .txt file
+  capture.output(descriptives, file = "data/processed/descriptives.txt", append = TRUE)
+}
 ```
 
 ### ANOVA
@@ -970,9 +950,13 @@ tryCatch(
       postHocEsCi = TRUE,
       emmPlots = FALSE
     )
+    # Check if save_output is equal to "y"
+if (save_output == "y") {
+  # Save ANOVA results as a .txt file
+  capture.output(anova, file = "data/processed/anova.txt", append = TRUE)
+}
 
-    # Save ANOVA results as a .txt file
-    capture.output(anova, file = "data/processed/anova.txt", append = TRUE)
+    # Display ANOVA results
     anova
   },
   error = function(e) {
