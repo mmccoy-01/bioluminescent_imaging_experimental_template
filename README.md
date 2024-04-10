@@ -4,14 +4,20 @@
 ![](data/processed/individual.PNG)
 
 
+
+Load the .Rmd file into R, download the necessary packages, then run document to see the experiment.
+
+
 [TIP]
 ====
-Load the .Rmd file into R, download the necessary packages, then run document to see the experiment.
+Install the `rouge` gem to get nice syntax highlighting in the generated document.
+
 [source,shell]
 ----
 gem install rouge
 ----
 ====
+
 
 This is a template I made for making reproducable, replicable, templateable, modular, and accurate experimental documentation for studies involving bioluminescent imaging.
 
