@@ -423,16 +423,19 @@ shinyApp(ui, server)
 processed_data <- read.csv("data/processed/processed_data.csv") %>%
   distinct(id, trt, death_date, trt_injection_date) %>% 
   mutate(
+    death_date = as.Date(death_date),
+    trt_injection_date = as.Date(trt_injection_date),
     event = ifelse(!is.na(death_date), 1, 0),
-    time = ifelse(!is.na(death_date), as.numeric(difftime(death_date, trt_injection_date, units = "days")), as.numeric(difftime(Sys.Date(), trt_injection_date, units = "days")))
+    time = ifelse(!is.na(death_date), difftime(death_date, trt_injection_date, units = "days"), NA)
   )
+
 
 # Take absolute value of time to ensure positive values
 processed_data$time <- abs(processed_data$time)
 
 kmcurve <- survfit(Surv(time, event)~trt, data = processed_data)
 
-ggsurvplot(kmcurve, data = processed_data, xlim = c(0, 100), break.x.by = 7, ylab = "", xlab = "",
+ggsurvplot(kmcurve, data = processed_data, xlim = c(0, 63), break.x.by = 7, ylab = "Survival", xlab = "Days",
 		   pval = TRUE,
 		   risk.table = TRUE,
 		   risk.table.title = "",
@@ -448,7 +451,7 @@ par(mar = c(0, 0, 0, 0))
 plot.new()
 
 # Get the summary table
-summary_table <- summary(kmcurve, times = seq(0, 100, 7))
+summary_table <- summary(kmcurve, times = seq(0, 63, 7))
 
 # Print the formatted summary
 print(summary_table, digits = 3)
