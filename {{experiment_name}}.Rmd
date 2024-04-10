@@ -1,5 +1,5 @@
 ---
-title: "NA"
+title: "experiment_name"
 sample: 25
 output:
   flexdashboard::flex_dashboard:
@@ -15,21 +15,22 @@ runtime: shiny
 ```{r user_defined_parameters, message=FALSE}
 # The user defines different variables and parameters that will be specific to the study.
 
-inj_date <- as.POSIXct(as.Date("na", format = "%m/%d/%Y"), tz = "GMT")
+inj_date <- as.Date("2024-02-10", format = "%Y-%m-%d")
 
-trt_date <- as.POSIXct(as.Date("na", format = "%m/%d/%Y"), tz = "GMT")
+trt_date <- as.Date("2024-02-23", format = "%Y-%m-%d")
 
-eos_date <- as.POSIXct(as.Date("na", format = "%m/%d/%Y"), tz = "GMT")
+eos_date <- as.Date("2024-03-23", format = "%Y-%m-%d")
 
-engraftment_imaging_date <- as.Date("na", format = "%m/%d/%Y")
+engraftment_imaging_date <- as.Date("2024-02-22", format = "%Y-%m-%d")
 
-dates <- as.POSIXct(as.Date(c("na", "na", "na", "na", "na", "na"), format = "%m/%d/%Y"), tz = "GMT")
+dates <- as.Date(c("2024-02-10", "2024-02-16", "2024-02-22", "2024-03-01", "2024-03-08", "2024-03-15", "2024-03-22", format = "%Y-%m-%d"))
 
+best_seed <- 4347 # Found after running 'Treatment Assignment' chunk
 number_of_groups <- 4
 mice_per_group <- 5
-filtered_mice <- c(1:25)
-labels <- c("0" = "Non-study", "1" = "na", "2" = "na", "3" = "na", "4" = "na")
-pal <- c("Non-study" = "#000000", "na" = "#f8766d", "na" = "#7cae00", "na" = "#00bfc4", "na" = "#C3B1E1")
+filtered_mice <- c(1, 3:6, 9:13, 15:18, 20:25) # excluding 2, 7, 8, 14, 19
+labels <- c("0" = "Non-study", "1" = "Treatment A", "2" = "Treatment B", "3" = "Treatment C", "4" = "Treatment D")
+pal <- c("Non-study" = "#000000", "Treatment A" = "#f8766d", "Treatment B" = "#7cae00", "Treatment C" = "#00bfc4", "Treatment D" = "#C3B1E1")
 
 # Link to organization logo
 src <- "na"
@@ -72,14 +73,14 @@ csv_files <- list.files(file_path, pattern = "\\.csv$", full.names = TRUE)
 
 # Function to read, process, and save each csv file as a data frame with the same name
 read_process_save_csv <- function(file) {
-  # Extract the file name without extension
-  file_name <- tools::file_path_sans_ext(basename(file))
+# Extract the file name without extension
+file_name <- tools::file_path_sans_ext(basename(file))
   
-  # Read the csv file into a data frame with check.names = FALSE
-  df <- read.csv(file, check.names = FALSE)
+# Read the csv file into a data frame with check.names = FALSE
+df <- read.csv(file, check.names = FALSE)
   
 # Rename the last column header indirectly because otherwise, the exponent cannot be handled
-  colnames(df)[4] <- "avg_radiance"
+colnames(df)[4] <- "avg_radiance"
 
 # Remove specified columns
 columns_to_remove <- c("Image Number", "ROI", "Image Layer", "Stdev Radiance", "Min Radiance", "Max Radiance")
@@ -90,8 +91,8 @@ colnames(df)[colnames(df) == "ROI Label"] <- "id"
 colnames(df)[colnames(df) == "Experiment"] <- "imaging_date"
 colnames(df)[colnames(df) == "Total Flux [p/s]"] <- "total_flux"
   
-  # Assign the processed data frame to a variable with the same name as the csv file
-  assign(file_name, df, envir = .GlobalEnv)
+# Assign the processed data frame to a variable with the same name as the csv file
+assign(file_name, df, envir = .GlobalEnv)
 }
 
 # Use lapply() to read, process, and save each csv file
@@ -100,12 +101,10 @@ invisible(lapply(csv_files, read_process_save_csv))
 # Combine all weeks' imaging data using do.call() and bind_rows()
 invisible(imaging_data <- do.call(bind_rows, mget(tools::file_path_sans_ext(basename(csv_files)), envir = .GlobalEnv)))
 
-# Convert imaging_date to Date class with the appropriate format
-imaging_data$imaging_date <- as.Date(imaging_data$imaging_date, format = "%m/%d/%Y")
-
 # Arrange the imaging_data data frame by imaging_date and then id
 imaging_data <- imaging_data %>%
-  arrange(imaging_date, id)
+  arrange(imaging_date, id) %>% 
+  mutate(imaging_date = as.Date(imaging_date, format = "%Y-%m-%d"))
 
 # Combine 'imaging_data' with 'raw_data' to make processed_data
 processed_data <- left_join(raw_data, imaging_data, by = "id")
@@ -161,6 +160,11 @@ best_seed <- NULL
 best_variability <- Inf
 
 # Loop through the first 5000 seeds
+# For the first run, you can cycle through 100,000 seeds instead, but it will take some time. The greater the loop number, the closer to the best randomization. After finding the best_seed, delete from here to here and manually input the best_seed in the 'user_defined_parameters' chunk
+
+
+
+# here
 for (seed in 1:5000) {
   set.seed(seed)
   
@@ -179,6 +183,10 @@ for (seed in 1:5000) {
 
 # Print the seed with the least variability
 cat("Seed with the least variability:", best_seed, "\n")
+
+# here
+
+
 
 set.seed(best_seed)
 
@@ -225,10 +233,10 @@ processed_data <- processed_data %>%
   select(id, trt_factor, everything()) %>%
   mutate(trt = factor(trt_factor, levels = names(labels), labels = labels)) %>%
   relocate(trt_factor, .before = trt_injection_vial) %>% 
-  relocate(trt, .before = trt_injection_vial) %>%
-  mutate(imaging_date = format(as.POSIXct(imaging_date, tz = "GMT"), "%Y/%m/%d"))
+  relocate(trt, .before = trt_injection_vial)
   
 # EXAMPLE CODE FOR REPLACING id = 6 WITH ID = 23
+# For cases where a mouse that has been imaged and assigned to a treatment and needs to be replaced 
 #processed_data <- processed_data %>%
   #mutate(imaging_date = as.Date(imaging_date, format = "%Y/%m/%d")) %>%
   #mutate(
@@ -250,8 +258,7 @@ Column {.tabset data-width=600}
 ```{r Treatment Plot, message=FALSE, warning=FALSE, fig.height=40, fig.width=11}
 # Load data
 processed_data <- read.csv("data/processed/processed_data.csv") %>%
-  mutate(imaging_date = as.POSIXct(imaging_date, tz = "GMT")) %>%
-  mutate(days_from_trt = as.numeric(difftime(imaging_date, trt_date, units = "days"))) %>% 
+  mutate(days_from_trt = floor(as.numeric(difftime(imaging_date, trt_date, units = "days")))) %>%
   relocate(days_from_trt, .before = imaging_date)
 
 # Define UI
@@ -290,8 +297,7 @@ server <- function(input, output) {
   
   # Load data
   processed_data <- read.csv("data/processed/processed_data.csv") %>%
-  mutate(imaging_date = as.POSIXct(imaging_date, tz = "GMT")) %>%
-  mutate(days_from_trt = as.numeric(difftime(imaging_date, trt_date, units = "days"))) %>% 
+  mutate(days_from_trt = floor(as.numeric(difftime(imaging_date, trt_date, units = "days")))) %>%
   relocate(days_from_trt, .before = imaging_date)
   
   # Create reactive dataset based on PDX and toggle selection
@@ -620,9 +626,6 @@ processed_data <- read.csv("data/processed/processed_data.csv")
 combined_data <- raw_mass %>%
   inner_join(processed_data, by = "id")
 
-# Convert mass_date to the Date class
-combined_data$mass_date <- as.Date(combined_data$mass_date, format = "%m/%d/%Y")
-
 # Sort data by mass_date from earliest to latest
 combined_data <- combined_data %>%
   arrange(mass_date)
@@ -706,6 +709,8 @@ processed_data %>%
 ```
 
 #### Treatment Assignment Plot From Engraftment Imaging Date
+
+Seed with the least variability: `r best_seed`
 
 ```{r Treatment Assignment Plot From Engraftment Imaging Date, message=FALSE, warning=FALSE, fig.height=6, fig.width=9.5}
 # Load data
