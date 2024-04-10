@@ -418,20 +418,17 @@ shinyApp(ui, server)
 
 ### Kaplan-Meier Curve
 
-```{r Kaplan-Meier Curve, eval=FALSE, message=FALSE, warning=FALSE, fig.height=10, fig.width=11}
+```{r Kaplan-Meier Curve, message=FALSE, warning=FALSE, fig.height=10, fig.width=11.5}
 # Load data
 processed_data <- read.csv("data/processed/processed_data.csv") %>%
   distinct(id, trt, death_date, trt_injection_date) %>% 
-    mutate(
-      death_date = as.Date(death_date, format = "%m/%d/%Y"),
-      trt_injection_date = as.Date(trt_injection_date, format = "%m/%d/%Y"),
-      event = ifelse(!is.na(death_date), 1, 0),
-      time = ifelse(!is.na(death_date), as.numeric(difftime(death_date, trt_injection_date, units = "days")), as.numeric(difftime(Sys.Date(), trt_injection_date, units = "days")))
-    )
+  mutate(
+    event = ifelse(!is.na(death_date), 1, 0),
+    time = ifelse(!is.na(death_date), as.numeric(difftime(death_date, trt_injection_date, units = "days")), as.numeric(difftime(Sys.Date(), trt_injection_date, units = "days")))
+  )
 
-# Specify the data that have been used to fit the survival curves
-# This line is needed otherwise object "processed_data" is not found
-data(processed_data)
+# Take absolute value of time to ensure positive values
+processed_data$time <- abs(processed_data$time)
 
 kmcurve <- survfit(Surv(time, event)~trt, data = processed_data)
 
@@ -439,10 +436,9 @@ ggsurvplot(kmcurve, data = processed_data, xlim = c(0, 100), break.x.by = 7, yla
 		   pval = TRUE,
 		   risk.table = TRUE,
 		   risk.table.title = "",
-		   legend.labs = labels,
 		   legend.title = "",
 		   surv.scale = "percent",
-		   palette = pal,
+		   fill = pal,
 		   title = "",
 		   risk.table.height = .20)
 
