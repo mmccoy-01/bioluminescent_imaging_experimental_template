@@ -735,23 +735,27 @@ print(plot)
 
 #### Tumor
 
-##### na
+##### XYZ-GFP-CBG
 
-tbd
+Patient derived xenograft named XYZ was thawed and injected on 2024-02-10. The vial was XYZ-GFP-CBG-passage2-2023-08-22-MM-86e6. Total cell count was 80e6 cells with a viability of .712 for a total live cell count of 57e6 cells. 25 mice were injected. Each mouse injected with .2cc/200uL of 1e6 cells.
 
 #### Treatment
 
-##### na
+##### Treatment A
 
-tbd
+Treatment A was thawed and injected on 2024-02-23. The vial was 'Treatment A'. Total cell count was Xe6 cells with a viability of X for a total live cell count of Xe6 cells. 5 mice were injected. Each mouse injected with .2cc/200uL of 1e6 cells.
 
-##### na
+##### Treatment B
 
-tbd
+Treatment B was thawed and injected on 2024-02-23. The vial was 'Treatment B'. Total cell count was Xe6 cells with a viability of X for a total live cell count of Xe6 cells. 5 mice were injected. Each mouse injected with .2cc/200uL of 1e6 cells.
 
-##### na
+##### Treatment C
 
-tbd
+Treatment C was thawed and injected on 2024-02-23. The vial was 'Treatment C'. Total cell count was Xe6 cells with a viability of X for a total live cell count of Xe6 cells. 5 mice were injected. Each mouse injected with .2cc/200uL of 1e6 cells.
+
+##### Treatment D
+
+Treatment D was thawed and injected on 2024-02-23. The vial was 'Treatment D'. Total cell count was Xe6 cells with a viability of X for a total live cell count of Xe6 cells. 5 mice were injected. Each mouse injected with .2cc/200uL of 1e6 cells.
 
 Column {.tabset data-width=500}
 -----------------------------------------------------------------------
