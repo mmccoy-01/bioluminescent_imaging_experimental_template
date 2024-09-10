@@ -491,8 +491,8 @@ summary_df <- as.data.frame(summary_table$table)
 kable(summary_df, digits = 3, caption = "Kaplan-Meier Survival Curve Summary")
 ```
 
-```{r Spleen and Marrow Counts}
-#| title: "Spleen and Marrow Counts"
+```{r Spleen Counts}
+#| title: "Spleen Counts"
 
 # Load the processed data
 processed_data <- read.csv("data/processed/processed_data.csv") %>%
