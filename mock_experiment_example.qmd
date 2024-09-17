@@ -915,7 +915,7 @@ if (any_alive) {
 ### Comments
 
 - Lights in animal rooms are programmed for 12 hour (6:15AM/ 6:15PM) ON/OFF cycles.
-- The recommended dry bulb temperature range for animal rooms is 68-74° F, with an acceptable fluctuation range of (+/-2° F).
+- The recommended dry bulb temperature range for animal rooms is 68-74F, with an acceptable fluctuation range of (+/-2F).
 - The recommended relative humidity (RH%) for animal rooms is 30-70%.
 
 # Statistical Analyses 
