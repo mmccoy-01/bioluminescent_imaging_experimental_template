@@ -55,8 +55,15 @@ number_of_groups <- 4
 mice_per_group <- 5
 filtered_mice <- setdiff(1:30, c(na))
 
-labels <- c("0" = "Non-study", "1" = "Treatment A", "2" = "Treatment B", "3" = "Treatment C", "4" = "Treatment D")
-pal <- c("Non-study" = "#000000", "Treatment A" = "#f8766d", "Treatment B" = "#7cae00", "Treatment C" = "#00bfc4", "Treatment D" = "#C3B1E1")
+labels <- c("0" = "Non-study", 
+            "1" = "Treatment A", 
+            "2" = "Treatment B", 
+            "3" = "Treatment C", 
+            "4" = "Treatment D")
+
+colors <- c("#000000", "#f8766d", "#7cae00", "#00bfc4", "#C3B1E1")
+
+pal <- setNames(colors, labels)
 
 # Link to organization logo
 src <- "https://as2.ftcdn.net/v2/jpg/02/33/12/47/1000_F_233124776_IL2jsHaRiYYgZK5X0rDAjKGz1XQmBleK.jpg"
@@ -768,19 +775,19 @@ print(plot)
 
 #### Treatment {.tabset}
 
-##### Palbociclib + CART19
+##### Treatment A
 
 - Test
 
-##### Palbociclib + Untransduced T-cells
+##### Treatment B
 
 - Test
 
-##### CART19
+##### Treatment C
 
 - Test
 
-##### Untransduced T-cells
+##### Treatment D
 
 - Test
 
