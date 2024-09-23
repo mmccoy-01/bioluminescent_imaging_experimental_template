@@ -61,7 +61,9 @@ labels <- c("0" = "Non-study",
             "3" = "Treatment C", 
             "4" = "Treatment D")
 
-colors <- c("#000000", "#f8766d", "#7cae00", "#00bfc4", "#C3B1E1")
+colors <- c("#000000", "#D32F2F", "#66BB6A", "#2E7D32", "#7B1FA2")
+
+pal <- setNames(colors, labels)
 
 # Link to organization logo
 src <- "https://as2.ftcdn.net/v2/jpg/02/33/12/47/1000_F_233124776_IL2jsHaRiYYgZK5X0rDAjKGz1XQmBleK.jpg"
