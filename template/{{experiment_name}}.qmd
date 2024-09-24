@@ -694,15 +694,26 @@ order_by_flux <- processed_data %>%
 filtered_data <- processed_data %>%
   filter(imaging_date <= engraftment_imaging_date)
 
-# Use the precomputed order in ggplot
-filtered_data %>%
-  ggplot(aes(x = factor(id, levels = order_by_flux), y = total_flux, color = imaging_date)) +
-  geom_point() +
-  scale_color_manual(values = setNames(rainbow(length(unique(filtered_data$imaging_date))), 
-                                      unique(filtered_data$imaging_date))) +
-  scale_y_log10() +
-  labs(x = "Mouse Number", y = "Total Flux", color = "Imaging Date") +
-  theme_minimal()
+# Create the Plotly plot
+plot_ly(filtered_data, 
+        x = ~factor(id, levels = order_by_flux), 
+        y = ~total_flux, 
+        type = 'scatter', 
+        mode = 'markers',
+        marker = list(color = ~factor(imaging_date), 
+                      colors = color_palette),
+        hoverinfo = "text", 
+    text = ~paste(
+    "ID:", id,
+    "<br>Flux:", sprintf("%.2e", total_flux),
+    "<br>Injection quality:", tumor_injection_quality
+  )) %>%
+  layout(
+    xaxis = list(title = "Mouse Number"),
+    yaxis = list(title = "Total Flux", type = "log"),  # Log scale for y-axis
+    legend = list(title = list(text = "Imaging Date")),
+    template = "minimal"
+  )
 
 # Count the number of mice with total_flux > 1e6 and total_flux <= 1e6
 mice_greater_than_1e6 <- processed_data %>%
