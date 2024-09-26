@@ -65,6 +65,15 @@ colors <- c("#000000", "#D32F2F", "#66BB6A", "#2E7D32", "#7B1FA2")
 
 pal <- setNames(colors, labels)
 
+# Define respective shapes for each label
+shapes <- c("square",  # Non-study (0)
+            "circle",  # Treatment A (1)
+            "triangle-up",  # Treatment B (2)
+            "diamond",  # Treatment C (3)
+            "cross")  # Treatment D (4)
+
+shapes <- setNames(shapes, labels)
+
 # Link to organization logo
 src <- "https://as2.ftcdn.net/v2/jpg/02/33/12/47/1000_F_233124776_IL2jsHaRiYYgZK5X0rDAjKGz1XQmBleK.jpg"
 
@@ -316,6 +325,7 @@ output$scatter_plot <- renderPlotly({
       plot_ly(x = ~days_from_trt, y = ~get(input$y_axis),
               type = 'scatter', mode = 'lines+markers',
               color = ~trt, colors = pal,
+              symbol = ~trt, symbols = shapes,  # Assign marker shapes here
               marker = list(size = 10),
               legendgroup = ~trt,
               name = ~trt,
@@ -363,9 +373,10 @@ output$scatter_plot <- renderPlotly({
       plot_ly(x = ~days_from_trt, y = ~y_value,
               type = 'scatter', mode = 'lines+markers',
               color = ~trt, colors = pal,
+              symbol = ~trt, symbols = shapes,  # Assign marker shapes here
+              marker = list(size = 10),
               legendgroup = ~trt,
               name = ~trt,
-              marker = list(size = 10),
               hoverinfo = "text",
               text = ~paste("Imaging Date: ", imaging_date, "<br>", y_axis_label, ": ", sprintf("%.2e", y_value))) %>%
       layout(
