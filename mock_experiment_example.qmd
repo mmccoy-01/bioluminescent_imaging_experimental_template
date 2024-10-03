@@ -20,7 +20,7 @@ server: shiny
 #| context: setup
 
 pkg_list <- c(
-  "knitr", "tidyverse", "shiny", "magick", "rsvg", "DT",
+  "knitr", "tidyverse", "shiny", "lubridate", "magick", "rsvg", "DT",
   "scales", "plotly", "survival", "survminer", "jmv"
 )
 
@@ -83,6 +83,14 @@ save_output <- "n"
 ```
 
 ```{r Data Pre-Processing}
+# Function to check and convert the date format
+convert_date_format <- function(date_column) {
+  # Try parsing as mm/dd/yyyy, and if it fails, parse as yyyy-mm-dd
+  date_column <- mdy(date_column)  # Parse as mm/dd/yyyy
+  date_column[is.na(date_column)] <- ymd(date_column[is.na(date_column)])  # Parse remaining as yyyy-mm-dd
+  return(date_column)
+}
+
 # Create 'processed_data' which will be one data frame that contains:
 # 1. all of the imaging data across weeks by funneling all of the weeks' imaging data into one data frame.
 # 2. all of the mass data across weeks.
@@ -132,6 +140,9 @@ imaging_data <- imaging_data %>%
 
 # Combine 'imaging_data' with 'raw_data' to make processed_data
 processed_data <- left_join(raw_data, imaging_data, by = "id")
+
+# Applying the function to the imaging_date column in processed_data
+processed_data$imaging_date <- convert_date_format(processed_data$imaging_date)
 
 # Write the 'processed_data' data frame to a CSV file
 write_csv(processed_data, file = "data/processed/processed_data.csv")
@@ -260,7 +271,7 @@ processed_data <- processed_data %>%
   mutate(trt = factor(trt_factor, levels = names(labels), labels = labels)) %>%
   relocate(trt_factor, .before = trt_injection_vial) %>% 
   relocate(trt, .before = trt_injection_vial)
-  
+
 # EXAMPLE CODE FOR REPLACING id = 6 WITH ID = 23
 # For cases where a mouse that has been imaged and assigned to a treatment and needs to be replaced 
 #processed_data <- processed_data %>%
@@ -640,11 +651,12 @@ most_recent_data <- processed_data %>%
 
 # Create a .csv file of current mice data with the most recent imaging_date
 processed_data %>%
-  select(cage_number, id, ear_punch, trt, imaging_date, total_flux, avg_radiance, death_date, manner_of_death) %>% 
+  select(cage_number, id, ear_punch, trt, dob, imaging_date, total_flux, avg_radiance, death_date, manner_of_death) %>% 
   group_by(id) %>%
   arrange(desc(imaging_date)) %>%
   slice(1) %>%  # Keep only the rows with the most recent imaging_date for each id
-  select(cage_number, id, ear_punch, trt, imaging_date, total_flux, avg_radiance, death_date, manner_of_death) %>%
+  mutate(weeks_old = round(as.numeric(difftime(Sys.Date(), ymd(dob), units = "weeks")), 1)) %>%  # Calculate and round weeks_old
+  select(cage_number, id, ear_punch, trt, imaging_date, total_flux, avg_radiance, weeks_old, death_date, manner_of_death) %>%
   write.csv(file = "data/processed/current_mice_data.csv", row.names = FALSE)
 
 # Create an interactive DataTable with initial sorting and exclude the ear_punch column
@@ -665,6 +677,9 @@ datatable(most_recent_data,
 # Read the files into data frames
 raw_mass <- read.csv("data/raw/raw_mass.csv")
 processed_data <- read.csv("data/processed/processed_data.csv")
+
+# Applying the function to the mass_date column in mass_data
+raw_mass$mass_date <- convert_date_format(raw_mass$mass_date)
 
 # Assuming you've handled duplicates in combined_data
 combined_data <- raw_mass %>%
@@ -877,6 +892,9 @@ high_flux_mice <- processed_data %>%
 
 # Read the 'raw_mass.csv' file into a data frame
 raw_mass <- read.csv("data/raw/raw_mass.csv")
+
+# Applying the function to the mass_date column in mass_data
+raw_mass$mass_date <- convert_date_format(raw_mass$mass_date)
 
 # Combine 'raw_mass' with 'processed_data'
 processed_data <- left_join(processed_data, raw_mass, by = "id")
