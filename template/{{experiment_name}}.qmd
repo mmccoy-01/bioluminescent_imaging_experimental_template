@@ -83,14 +83,6 @@ save_output <- "n"
 ```
 
 ```{r Data Pre-Processing}
-# Function to check and convert the date format
-convert_date_format <- function(date_column) {
-  # Try parsing as mm/dd/yyyy, and if it fails, parse as yyyy-mm-dd
-  date_column <- mdy(date_column)  # Parse as mm/dd/yyyy
-  date_column[is.na(date_column)] <- ymd(date_column[is.na(date_column)])  # Parse remaining as yyyy-mm-dd
-  return(date_column)
-}
-
 # Create 'processed_data' which will be one data frame that contains:
 # 1. all of the imaging data across weeks by funneling all of the weeks' imaging data into one data frame.
 # 2. all of the mass data across weeks.
@@ -109,20 +101,26 @@ read_process_save_csv <- function(file) {
   # Extract the file name without extension
   file_name <- tools::file_path_sans_ext(basename(file))
   
+  # Use the file name as the imaging_date, assuming it's formatted as yyyy-mm-dd
+  imaging_date <- file_name
+  
   # Read the csv file into a data frame with check.names = FALSE
   df <- read.csv(file, check.names = FALSE)
   
-# Rename the last column header indirectly because otherwise, the exponent cannot be handled
+  # Rename the last column header indirectly because otherwise, the exponent cannot be handled
   colnames(df)[4] <- "avg_radiance"
-
-# Remove specified columns
-columns_to_remove <- c("Image Number", "ROI", "Image Layer", "Stdev Radiance", "Min Radiance", "Max Radiance")
-df <- df[, !colnames(df) %in% columns_to_remove]
   
-# Rename columns
-colnames(df)[colnames(df) == "ROI Label"] <- "id"
-colnames(df)[colnames(df) == "Experiment"] <- "imaging_date"
-colnames(df)[colnames(df) == "Total Flux [p/s]"] <- "total_flux"
+  # Remove specified columns
+  columns_to_remove <- c("Image Number", "ROI", "Image Layer", "Stdev Radiance", "Min Radiance", "Max Radiance")
+  df <- df[, !colnames(df) %in% columns_to_remove]
+  
+  # Rename columns
+  colnames(df)[colnames(df) == "ROI Label"] <- "id"
+  colnames(df)[colnames(df) == "Total Flux [p/s]"] <- "total_flux"
+  
+  # Mutate to add the 'imaging_date' column using the file name and convert to date format
+  df <- df %>%
+    mutate(imaging_date = ymd(imaging_date))  # Ensure it's recognized as a date
   
   # Assign the processed data frame to a variable with the same name as the csv file
   assign(file_name, df, envir = .GlobalEnv)
@@ -140,9 +138,6 @@ imaging_data <- imaging_data %>%
 
 # Combine 'imaging_data' with 'raw_data' to make processed_data
 processed_data <- left_join(raw_data, imaging_data, by = "id")
-
-# Applying the function to the imaging_date column in processed_data
-processed_data$imaging_date <- convert_date_format(processed_data$imaging_date)
 
 # Write the 'processed_data' data frame to a CSV file
 write_csv(processed_data, file = "data/processed/processed_data.csv")
@@ -341,7 +336,10 @@ output$scatter_plot <- renderPlotly({
               legendgroup = ~trt,
               name = ~trt,
               hoverinfo = "text",
-              text = ~paste("Imaging Date: ", imaging_date, "<br>ID: ", id, "<br>", y_axis_label, ": ", sprintf("%.2e", get(input$y_axis)))) %>%
+              text = ~paste("Imaging Date: ", imaging_date, "<br>ID: ", id, "<br>", y_axis_label, ": ", sprintf("%.2e", get(input$y_axis)),
+                            "<br>Tumor inj quality: ", tumor_injection_quality,
+                            "<br>Treatment inj quality: ", trt_injection_quality
+                            )) %>%
       layout(
         yaxis = list(
           type = "log",
@@ -591,8 +589,14 @@ process_folder <- function(folder) {
   
   # Read all PNG images at once and convert them to SVG format
   svg_images <- lapply(png_files, function(png_path) {
-    # Read and convert to SVG in one step
-    svg_image <- image_convert(image_read(png_path), format = "svg")
+    # Read the image
+    png_image <- image_read(png_path)
+    
+    # Trim the white space around the image
+    trimmed_image <- image_trim(png_image)
+    
+    # Convert the trimmed image to SVG
+    svg_image <- image_convert(trimmed_image, format = "svg")
     
     # Get image dimensions
     img_info <- image_info(svg_image)
@@ -608,10 +612,15 @@ process_folder <- function(folder) {
 # Process all folders sequentially and store the results in the plots list
 plots <- setNames(lapply(folders, process_folder), basename(folders))
 
-# Define a function to plot the SVG images
+# Define a function to plot the SVG images without white space
 plot_svg_image <- function(svg_image, img_width, img_height) {
+  # Set up the plotting area with no margins
   par(mar = c(0, 0, 0, 0), oma = c(0, 0, 0, 0), xaxs = "i", yaxs = "i", bg = "white")
+  
+  # Create a blank plot with no axes
   plot(1, type = "n", xlim = c(1, img_width), ylim = c(1, img_height), xlab = "", ylab = "", axes = FALSE)
+  
+  # Plot the image with no white space
   rasterImage(as.raster(svg_image), 1, 1, img_width, img_height)
 }
 ```
@@ -646,7 +655,6 @@ processed_data <- read.csv("data/processed/processed_data.csv")
 
 # Select the desired columns and format trt
 most_recent_data <- processed_data %>%
-  filter(id %in% filtered_mice) %>%
   select(cage_number, id, ear_punch, trt, imaging_date, total_flux, avg_radiance, death_date, manner_of_death)
 
 # Create a .csv file of current mice data with the most recent imaging_date
@@ -875,6 +883,14 @@ print(scatterplot)
 ```{r Euthanasia Criteria Check}
 #| title: "Euthanasia Criteria Check"
 
+# Function to check and convert the date format
+convert_date_format <- function(date_column) {
+  # Try parsing as mm/dd/yyyy, and if it fails, parse as yyyy-mm-dd
+  date_column <- mdy(date_column)  # Parse as mm/dd/yyyy
+  date_column[is.na(date_column)] <- ymd(date_column[is.na(date_column)])  # Parse remaining as yyyy-mm-dd
+  return(date_column)
+}
+
 # Load data
 processed_data <- read.csv("data/processed/processed_data.csv")
 
@@ -888,7 +904,7 @@ most_recent_imaging_date <- processed_data %>%
 high_flux_mice <- processed_data %>%
   filter(imaging_date == most_recent_imaging_date,
          total_flux >= 2e+10,
-         death_date == "")
+         is.na(death_date))  # Correct filter to find only alive mice
 
 # Read the 'raw_mass.csv' file into a data frame
 raw_mass <- read.csv("data/raw/raw_mass.csv")
@@ -899,8 +915,8 @@ raw_mass$mass_date <- convert_date_format(raw_mass$mass_date)
 # Combine 'raw_mass' with 'processed_data'
 processed_data <- left_join(processed_data, raw_mass, by = "id")
 
-# Check if all mice are dead based on the 'manner_of_death' column
-any_alive <- !any(is.na(processed_data$death_date))
+# Check if there are any alive mice (death_date is NA)
+any_alive <- any(is.na(processed_data$death_date))
 
 if (any_alive) {
   # Convert mass_date to Date format
