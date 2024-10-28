@@ -3,3 +3,12 @@ in_vivo_research_dashboard.docx
 
 # Ignore the specific MP4 file
 in_vivo_research_dashboard_McCoy_RMedicine Lightning_Talk.mp4
+
+# Ignore tracking the html output files that is created when .qmd is ran
+/*_files/
+
+# Ignore tracking the .html output that is created when .qmd is ran
+/*.html
+
+# Ignore all .db files
+*.db
