@@ -1,7 +1,5 @@
 # Summary
 
-000-Template is the repo for a blank template with no mock data.
-
 ![](data/processed/group.PNG)
 ![](data/processed/individual.PNG)
 
@@ -26,6 +24,7 @@ Here is the folder hierarchy:
 - **experiment_name/**
   - *experiment_name.qmd*: Quarto file for knitting experimental documentation into a dashboard with shiny app and plotly configuration
   - *README.md*: Documentation and support file for understanding experimental nuances amd folder hierarchy
+  - *renv.lock*: Records package versions and dependencies for reproducibility
   - **data/**
     - **imaging/**
       - **processed/**
@@ -60,6 +59,7 @@ Here is the folder hierarchy:
 graph LR
 experiment_name --> experiment_name.qmd
 experiment_name --> README.md
+experiment_name --> renv.lock
 experiment_name --> data
 
 data --> imaging
@@ -101,3 +101,6 @@ data --> F(raw)
 F(raw) --> raw_data.csv
 F(raw) --> raw_mass.csv
 ```
+
+# Help
+- If a package error occurs, run `renv::restore()` to ensure the project's library matches the package versions and dependencies specified in the `renv.lock` file.

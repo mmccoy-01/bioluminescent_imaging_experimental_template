@@ -1,7 +1,7 @@
 ---
-title: "na"
-author: "name"
-logo: "https://as2.ftcdn.net/v2/jpg/02/33/12/47/1000_F_233124776_IL2jsHaRiYYgZK5X0rDAjKGz1XQmBleK.jpg"
+title: "title"
+author: "author"
+logo: "https://www.anelto.com/wp-content/uploads/2021/08/placeholder-image.png"
 nav-buttons:
 - icon: github
   href: https://github.com/mmccoy-01/bioluminescent_imaging_experimental_template
@@ -19,12 +19,23 @@ server: shiny
 ```{r Setup}
 #| context: setup
 
+# Do not run this code or update the renv.lock file, as it reflects the original state when the code was written and executed.
+#renv::snapshot(lockfile = "renv.lock")
+
+# Set the working directory to the location of the current script. Use this only when running code chunks interactively, not when rendering the entire document.
+#setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+
+# Define a list of required packages for the dashboard.
 pkg_list <- c(
   "knitr", "tidyverse", "shiny", "lubridate", "magick", "rsvg", "DT",
-  "scales", "plotly", "survival", "survminer", "jmv"
+  "scales", "plotly", "survival", "survminer", "jmv", "lme4", "emmeans", "gtsummary"
 )
 
-# Function to install and load packages
+# Function to install and load packages.
+# For each package in the list:
+# - Check if the package is already installed.
+# - If not installed, install it along with its dependencies.
+# - Load the package into the R session.
 load_packages <- function(pkg_list) {
   for (pkg in pkg_list) {
     if (!require(pkg, character.only = TRUE)) {
@@ -34,249 +45,194 @@ load_packages <- function(pkg_list) {
   }
 }
 
+# Call the function to ensure all required packages are installed and loaded.
 load_packages(pkg_list)
 
-# library(knitr) # for kable table formatting
-# library(tidyverse) # tidyverse
-# library(shiny) # shiny app functionality
-# library(DT) # for rendering tables
-# library(scales) # scale functions for customizing visualizations
-# library(plotly) # interactive cursor friendly plots
-# library(survival) # for survival curves
-# library(survminer) # for survival curves
-# library(jmv) # performing statistical analyses
+# Initially, `best_seed` is set to `NULL` to allow the first randomization to identify the optimal seed. 
+# Once the best seed is determined, update `best_seed` to that value to prevent unnecessary repeated randomizations of the `trt` assignments in subsequent runs.
+best_seed <- NULL
 
-#setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+# Define a list of mice IDs to include in the study by excluding specific IDs.
+filtered_mice <- setdiff(1:30, c(1, 5, 10))  # Exclude mice 1, 5, 10.
 
-# The user defines different variables and parameters that will be specific to the study.
-
-best_seed <-  "na"
-number_of_groups <- 4
-mice_per_group <- 5
-filtered_mice <- setdiff(1:30, c(na))
-
+# Create a named vector for treatment labels, linking each label to its corresponding treatment group.
 labels <- c("0" = "Non-study", 
-            "1" = "Treatment A", 
-            "2" = "Treatment B", 
-            "3" = "Treatment C", 
-            "4" = "Treatment D")
+            "1" = "A", 
+            "2" = "B", 
+            "3" = "C", 
+            "4" = "D")
 
-colors <- c("#000000", "#D32F2F", "#66BB6A", "#2E7D32", "#7B1FA2")
+# Define a color palette for each treatment group and link it to the labels.
+colors <- c("#000000", "#D32F2F", "#2E7D32", "#7B1FA2", "#BDBDBD")
 
+# Name the colors vector using the labels.
 pal <- setNames(colors, labels)
 
-# Define respective shapes for each label
-shapes <- c("square",  # Non-study (0)
-            "circle",  # Treatment A (1)
-            "triangle-up",  # Treatment B (2)
-            "diamond",  # Treatment C (3)
-            "cross")  # Treatment D (4)
+# Define plot shapes for each treatment group and link them to the labels.
+shapes <- c("square",           # Non-study (0)
+            "circle",           # A (1)
+            "triangle-up",      # B (2)
+            "diamond",          # C (3)
+            "cross")            # D (4)
 
+# Name the shapes vector using the labels.
 shapes <- setNames(shapes, labels)
 
-# Link to organization logo
-src <- "https://as2.ftcdn.net/v2/jpg/02/33/12/47/1000_F_233124776_IL2jsHaRiYYgZK5X0rDAjKGz1XQmBleK.jpg"
+# Provide a link to an organization logo (used in Treatment Plot Shiny App).
+src <- "https://www.anelto.com/wp-content/uploads/2021/08/placeholder-image.png"
 
-# Save descriptives and anova stat outputs as a .txt file? y or n
-# Default is n to stop the .txt from constantly being overwritten when the .Rmd file is ran
+# Option to save statistical output (Descriptives and Mixed-Effects Model results) as a .txt file, "y" or "n".
+# Default is "n" to prevent overwriting the file when running the .qmd repeatedly.
 save_output <- "n"
 ```
 
 ```{r Data Pre-Processing}
-# Create 'processed_data' which will be one data frame that contains:
-# 1. all of the imaging data across weeks by funneling all of the weeks' imaging data into one data frame.
-# 2. all of the mass data across weeks.
+# Combine all weeks' imaging data into a single data frame ('processed_data') 
+# by processing individual CSV files and merging them with raw data.
 
-# Read the 'raw_data.csv' file into a data frame
+# Read the raw data file ('raw_data.csv') into a data frame.
 raw_data <- read.csv("data/raw/raw_data.csv")
 
-# Set the file path
+# Set the file path for processed imaging data.
 file_path <- "data/imaging/processed/"
 
-# Get a list of all weeks' imaging data .csv files in the directory
+# Get a list of all CSV files in the directory, matching the pattern for imaging data.
 csv_files <- list.files(file_path, pattern = "\\.csv$", full.names = TRUE)
 
-# Function to read, process, and save each csv file as a data frame with the same name
+# Define a function to read, process, and assign each CSV file as a data frame.
 read_process_save_csv <- function(file) {
-  # Extract the file name without extension
+  # Extract the file name (without extension) to use as an identifier.
   file_name <- tools::file_path_sans_ext(basename(file))
   
-  # Use the file name as the imaging_date, assuming it's formatted as yyyy-mm-dd
+  # Assume the file name represents the imaging_date (formatted as yyyy-mm-dd).
   imaging_date <- file_name
   
-  # Read the csv file into a data frame with check.names = FALSE
+  # Read the CSV file into a data frame, preserving original column names.
   df <- read.csv(file, check.names = FALSE)
   
-  # Rename the last column header indirectly because otherwise, the exponent cannot be handled
+  # Rename the fourth column to 'avg_radiance' to handle any issues with special characters.
   colnames(df)[4] <- "avg_radiance"
   
-  # Remove specified columns
-  columns_to_remove <- c("Image Number", "ROI", "Image Layer", "Stdev Radiance", "Min Radiance", "Max Radiance")
+  # Remove unnecessary columns that won't be used for analysis.
+  columns_to_remove <- c("Image Number", "ROI", "Image Layer", 
+                         "Stdev Radiance", "Min Radiance", "Max Radiance")
   df <- df[, !colnames(df) %in% columns_to_remove]
   
-  # Rename columns
+  # Standardize column names for consistency.
   colnames(df)[colnames(df) == "ROI Label"] <- "id"
   colnames(df)[colnames(df) == "Total Flux [p/s]"] <- "total_flux"
   
-  # Mutate to add the 'imaging_date' column using the file name and convert to date format
+  # Add an 'imaging_date' column derived from the file name, ensuring it is recognized as a date.
   df <- df %>%
-    mutate(imaging_date = ymd(imaging_date))  # Ensure it's recognized as a date
+    mutate(imaging_date = ymd(imaging_date))
   
-  # Assign the processed data frame to a variable with the same name as the csv file
+  # Assign the processed data frame to a variable with the same name as the CSV file (e.g., "2024-01-01").
   assign(file_name, df, envir = .GlobalEnv)
 }
 
-# Use lapply() to read, process, and save each csv file
+# Apply the 'read_process_save_csv' function to all CSV files, processing and saving each as a data frame.
 invisible(lapply(csv_files, read_process_save_csv))
 
-# Combine all weeks' imaging data using do.call() and bind_rows()
+# Combine all processed weekly data frames into a single data frame ('imaging_data') using 'bind_rows()'.
+# The names of the data frames correspond to the file names derived earlier.
 invisible(imaging_data <- do.call(bind_rows, mget(tools::file_path_sans_ext(basename(csv_files)), envir = .GlobalEnv)))
 
-# Arrange the imaging_data data frame by imaging_date and then id
+# Arrange the combined 'imaging_data' by 'imaging_date' and then by 'id' for a logical order.
 imaging_data <- imaging_data %>%
   arrange(imaging_date, id)
 
-# Combine 'imaging_data' with 'raw_data' to make processed_data
+# Merge the 'imaging_data' with 'raw_data' on the 'id' column to create 'processed_data'.
 processed_data <- left_join(raw_data, imaging_data, by = "id")
 
-# Write the 'processed_data' data frame to a CSV file
+# Save the final 'processed_data' data frame as a CSV file for future use.
 write_csv(processed_data, file = "data/processed/processed_data.csv")
 ```
 
 ```{r Treatment Assignment}
 #| output: FALSE
 
-# Using the already user-defined filtered_mice, randomly assign mice to treatment conditions so that each treatment condition has equivalent total_flux between treatments. All of the filtered/unassigned remaining mice are assigned to na which gets updated to trt_factor = 0 aka the non-study/expansion group.
-
-# Load data
+# Load processed data
 processed_data <- read.csv("data/processed/processed_data.csv")
 
+# Filter mice
 filtered_data <- processed_data %>%
-  filter(imaging_date == engraftment_imaging_date, id %in% filtered_mice) %>%
-  distinct(id, .keep_all = TRUE) %>%
-  arrange(total_flux)
+  filter(imaging_date == engraftment_imaging_date & id %in% filtered_mice)
+
+# Determine the number of arms and mice per arm
+num_arms <- length(labels) - 1  # Exclude the "Non-study" group
+num_per_arm <- nrow(filtered_data) / num_arms
+
+# Ensure mice_per_arm is an integer
+if (num_per_arm %% 1 != 0) {
+  stop("The number of mice per arm is not an integer. Check your input data or labels.")
+}
+num_per_arm <- as.integer(num_per_arm)
 
 # Define the assign_groups function
-assign_groups <- function(data, num_groups, num_per_group) {
-  # Create an empty vector to store group assignments
+assign_groups <- function(data, num_arms, num_per_arm) {
+  # Initialize group assignments and mean flux storage
   trt <- integer(nrow(data))
+  mean_total_flux <- data.frame(Group = 1:num_arms, Mean_Total_Flux = numeric(num_arms))
   
-  # Create a data frame to store mean total_flux for each group
-  mean_total_flux <- data.frame(Group = 1:num_groups, Mean_Total_Flux = numeric(num_groups))
-  
-  # Shuffle the data to randomize assignments
+  # Shuffle data to randomize assignments
   data <- data[sample(nrow(data)), ]
-  for (i in 1:num_groups) {
-    # Select a subset of data for each group
-    group_data <- data[((i - 1) * num_per_group + 1):(i * num_per_group), ]
+  
+  for (i in seq_len(num_arms)) {
+    # Assign data to the current group
+    group_data <- data[((i - 1) * num_per_arm + 1):(i * num_per_arm), ]
     
     # Calculate mean total_flux for the group
-    mean_flux <- mean(group_data$total_flux)
+    mean_total_flux$Mean_Total_Flux[i] <- mean(group_data$total_flux)
     
-    # Assign the group number to the trt column
-    trt[((i - 1) * num_per_group + 1):(i * num_per_group)] <- i
-    
-    # Store the mean total_flux in the mean_total_flux data frame
-    mean_total_flux[i, 2] <- mean_flux
+    # Assign group number
+    trt[((i - 1) * num_per_arm + 1):(i * num_per_arm)] <- i
   }
   
-  # Add the trt column to the data frame
+  # Add treatment assignments to the data frame
   data$trt <- trt
   
-  # Return the data frame with group assignments
   return(list(Data = data, Mean_Total_Flux = mean_total_flux))
 }
 
-# Initialize variables to store the best seed and its corresponding variability
-best_seed <- NULL
-best_variability <- Inf
+# Check if `best_seed` is already defined
+if (is.null(best_seed)) {
+  # Initialize variables to find the best random seed
+  best_variability <- Inf
+  num_seeds <- 1000  # Adjust this as needed
 
-# Loop through the first 5000 seeds
-# For the first run, you can cycle through 100,000 seeds instead, but it will take some time. The greater the loop number, the closer to the best randomization. After finding the best_seed, delete from here to here and manually input the best_seed in the 'user_defined_parameters' chunk
-
-
-
-# here
-for (seed in 1:5000) {
-  set.seed(seed)
-  
-  # Call the function to assign groups using filtered_data
-  result <- assign_groups(filtered_data, number_of_groups, mice_per_group)
-  
-  # Calculate the standard deviation of mean total_flux across groups
-  variability <- sd(result$Mean_Total_Flux$Mean_Total_Flux)
-  
-  # Check if this seed has lower variability than the current best
-  if (variability < best_variability) {
-    best_variability <- variability
-    best_seed <- seed
+  # Loop through seeds to minimize variability
+  for (seed in seq_len(num_seeds)) {
+    set.seed(seed)
+    
+    # Assign groups
+    result <- assign_groups(filtered_data, num_arms, num_per_arm)
+    
+    # Calculate variability across groups
+    variability <- sd(result$Mean_Total_Flux$Mean_Total_Flux)
+    
+    # Update the best seed if variability is improved
+    if (variability < best_variability) {
+      best_variability <- variability
+      best_seed <- seed
+    }
   }
+} else {
 }
 
-# Print the seed with the least variability
-cat("Seed with the least variability:", best_seed, "\n")
-
-# here
-
-
-
+# Use the best seed (either predefined or found) for final group assignment
 set.seed(best_seed)
+result <- assign_groups(filtered_data, num_arms, num_per_arm)
 
-# Function to assign mice to groups
-assign_groups <- function(data, num_groups, num_per_group) {
-  # Create an empty vector to store group assignments
-  trt_factor <- integer(nrow(data))
-  
-  # Create a data frame to store mean total_flux for each group
-  mean_total_flux <- data.frame(Group = 1:num_groups, Mean_Total_Flux = numeric(num_groups))
-  
-  # Shuffle the data to randomize assignments
-  data <- data[sample(nrow(data)), ]
-  for (i in 1:num_groups) {
-    # Select a subset of data for each group
-    group_data <- data[((i - 1) * num_per_group + 1):(i * num_per_group), ]
-    
-    # Calculate mean total_flux for the group
-    mean_flux <- mean(group_data$total_flux)
-    
-    # Assign the group number to the trt_factor column
-    trt_factor[((i - 1) * num_per_group + 1):(i * num_per_group)] <- i
-    
-    # Store the mean total_flux in the mean_total_flux data frame
-    mean_total_flux[i, 2] <- mean_flux
-  }
-  
-  # Add the trt_factor column to the data frame
-  data$trt_factor <- trt_factor
-  
-  # Return the data frame with group assignments
-  return(list(Data = data, Mean_Total_Flux = mean_total_flux))
-}
-
-# Call the function to assign groups using filtered_data
-result <- assign_groups(filtered_data, number_of_groups, mice_per_group)
-
-# Add trt_factor and trt to processed_data data frame.
-# NA trt_factor values become 0 and trt becomes Non-study
-# Add trt_factor and trt to processed_data data frame
+# Update processed_data with group assignments
 processed_data <- processed_data %>%
-  left_join(result$Data %>% select(id, trt_factor), by = "id") %>%
-  mutate(trt_factor = as.factor(ifelse(is.na(trt_factor), "0", trt_factor))) %>%
-  select(id, trt_factor, everything()) %>%
-  mutate(trt = factor(trt_factor, levels = names(labels), labels = labels)) %>%
-  relocate(trt_factor, .before = trt_injection_vial) %>% 
+  left_join(result$Data %>% select(id, trt), by = "id") %>%
+  mutate(
+    trt = factor(ifelse(is.na(trt), "0", as.character(trt)), levels = names(labels), labels = labels),
+    trt_factor = as.numeric(as.character(trt))
+  ) %>%
   relocate(trt, .before = trt_injection_vial)
 
-# EXAMPLE CODE FOR REPLACING id = 6 WITH ID = 23
-# For cases where a mouse that has been imaged and assigned to a treatment and needs to be replaced 
-#processed_data <- processed_data %>%
-  #mutate(imaging_date = as.Date(imaging_date, format = "%Y/%m/%d")) %>%
-  #mutate(
-    #trt_factor = if_else(id == 23 & imaging_date > as.Date("2023-12-14"), first(trt_factor[id == 6]), trt_factor),
-    #trt = if_else(id == 23 & imaging_date > as.Date("2023-12-14"), first(trt[id == 6]), trt)
-  #)
-  
-# Write the 'processed_data' data frame to a CSV file
+# Write the updated processed_data to a CSV file
 write_csv(processed_data, file = "data/processed/processed_data.csv")
 ```
 
@@ -328,7 +284,7 @@ output$scatter_plot <- renderPlotly({
     p <- selected_data() %>%
       mutate(trt = reorder(trt, trt_factor)) %>%
       group_by(trt, id) %>%
-      plot_ly(x = ~days_from_trt, y = ~get(input$y_axis),
+      plot_ly(x = ~days_from_trt + runif(length(days_from_trt), -0.3, 0.3), y = ~get(input$y_axis),
               type = 'scatter', mode = 'lines+markers',
               color = ~trt, colors = pal,
               symbol = ~trt, symbols = shapes,  # Assign marker shapes here
@@ -354,7 +310,12 @@ output$scatter_plot <- renderPlotly({
                        paste(as.numeric(as.Date(processed_data$tumor_injection_date[1], format = "%Y-%m-%d") - as.Date(processed_data$trt_injection_date[1], format = "%Y-%m-%d"))))
         ),
         showlegend = TRUE,
-        legend = list(x = 1, y = 0.5, title = "Treatment"),
+        legend = list(orientation = "h",
+                      x = 0.5,
+                      xanchor = "center",
+                      y = -0.22,
+                      title = "Treatment"
+                      ),
         images = list(
           source = src,
           xref = "paper",
@@ -379,7 +340,7 @@ output$scatter_plot <- renderPlotly({
 
     p <- data_summary %>%
       group_by(trt) %>%
-      plot_ly(x = ~days_from_trt, y = ~y_value,
+      plot_ly(x = ~days_from_trt + runif(length(days_from_trt), -0.3, 0.3), y = ~y_value,
               type = 'scatter', mode = 'lines+markers',
               color = ~trt, colors = pal,
               symbol = ~trt, symbols = shapes,  # Assign marker shapes here
@@ -402,7 +363,12 @@ output$scatter_plot <- renderPlotly({
                        paste(as.numeric(as.Date(processed_data$tumor_injection_date[1], format = "%Y-%m-%d") - as.Date(processed_data$trt_injection_date[1], format = "%Y-%m-%d"))))
         ),
         showlegend = TRUE,
-        legend = list(x = 1, y = 0.5, title = "Treatment"),
+        legend = list(orientation = "h",
+                      x = 0.5,
+                      xanchor = "center",
+                      y = -0.22,
+                      title = "Treatment"
+                      ),
         images = list(
           source = src,
           xref = "paper",
@@ -441,12 +407,13 @@ plotlyOutput("scatter_plot")
 
 # Load data
 processed_data <- read.csv("data/processed/processed_data.csv") %>%
-  distinct(id, trt, death_date, trt_injection_date) %>% 
+  distinct(id, trt, death_date, trt_injection_date) %>%
   mutate(
     death_date = as.Date(death_date, format = "%Y-%m-%d"),
     trt_injection_date = as.Date(trt_injection_date, format = "%Y-%m-%d"),
     event = ifelse(!is.na(death_date), 1, 0),
-    time = ifelse(!is.na(death_date), as.numeric(difftime(death_date, trt_injection_date, units = "days")), 
+    time = ifelse(!is.na(death_date), 
+                  as.numeric(difftime(death_date, trt_injection_date, units = "days")), 
                   as.numeric(difftime(Sys.Date(), trt_injection_date, units = "days")))
   )
 
@@ -456,22 +423,27 @@ processed_data$time <- abs(processed_data$time)
 # Fit the survival curve
 kmcurve <- survfit(Surv(time, event) ~ trt, data = processed_data)
 
-# Plot the survival curve
-ggsurvplot(kmcurve, data = processed_data, xlim = c(0, 60), break.x.by = 7, ylab = "", xlab = "",
-           pval = TRUE,
-           risk.table = TRUE,
-           risk.table.title = "",
-           legend.title = "",
-           surv.scale = "percent",
-           fill = pal,
-           title = "",
-           risk.table.height = 0.4)
+# Sort labels alphabetically
+sorted_labels <- sort(labels)
+
+# Match the sorted labels to the colors
+sorted_colors <- colors[match(sorted_labels, labels)]
+
+#  Create survival plot
+ggsurvplot(kmcurve, data = processed_data,
+                xlim = c(0, 60),
+                break.x.by = 7,
+                pval = FALSE,
+                risk.table = TRUE,
+                risk.table.height = 0.4,
+                surv.scale = "percent",
+                title = "",
+                risk.table.title = "",
+                legend.title = "",
+                fill = processed_data$trt,
+                palette = sorted_colors)
 
 # Survival by Mouse and by Treatment
-
-# Read data
-processed_data <- read.csv("data/processed/processed_data.csv")
-
 # Calculate survival in days
 processed_data$survival_days <- as.numeric(difftime(as.Date(processed_data$death_date), 
                                                     as.Date(processed_data$trt_injection_date), 
@@ -482,10 +454,12 @@ create_survival_table <- function(data, group_by_trt = FALSE) {
   if (group_by_trt) {
     table_data <- data %>%
       group_by(trt) %>%
-      summarise(mean_survival_days = mean(survival_days, na.rm = TRUE),
-                median_survival_days = median(survival_days, na.rm = TRUE),
-                min_survival_days = min(survival_days, na.rm = TRUE),
-                max_survival_days = max(survival_days, na.rm = TRUE))
+      summarise(
+        mean_survival_days = mean(survival_days, na.rm = TRUE),
+        median_survival_days = median(survival_days, na.rm = TRUE),
+        min_survival_days = min(survival_days, na.rm = TRUE),
+        max_survival_days = max(survival_days, na.rm = TRUE)
+      )
   } else {
     table_data <- data %>%
       distinct(id, .keep_all = TRUE) %>%
@@ -518,8 +492,8 @@ summary_df <- as.data.frame(summary_table$table)
 kable(summary_df, digits = 3, caption = "Kaplan-Meier Survival Curve Summary")
 ```
 
-```{r Spleen and Marrow Counts}
-#| title: "Spleen and Marrow Counts"
+```{r Spleen Counts}
+#| title: "Spleen Counts"
 
 # Load the processed data
 processed_data <- read.csv("data/processed/processed_data.csv") %>%
@@ -555,6 +529,60 @@ plot <- plot_ly(
       ticktext = filtered_data$id   # Show tick labels corresponding to the IDs
     ),
     yaxis = list(title = "Spleen Total Live Cell Count"),
+    images = list(
+      source = src,  # Ensure 'src' is defined and points to a valid image
+      xref = "paper",
+      yref = "paper",
+      x = 0,
+      y = 1,
+      sizex = 0.2,
+      sizey = 0.2,
+      opacity = 0.8
+    )
+  ) %>%
+  config(scrollZoom = TRUE, modeBarButtonsToAdd = list('drawopenpath'))
+
+# Display the Plotly plot
+plot
+```
+
+```{r Marrow Counts}
+#| title: "Marrow Counts"
+
+# Load the processed data
+processed_data <- read.csv("data/processed/processed_data.csv") %>%
+  distinct(id, trt, marrow_total_live_cell_count, number_of_marrow_cryovials, cryovial_marrow_cell_total, marrow_cell_viability, manner_of_death, death_date)
+
+# Filter to keep only rows with non-zero spleen_total_live_cell_count
+filtered_data <- processed_data %>%
+  filter(marrow_total_live_cell_count > 0)
+
+# Create the Plotly plot
+plot <- plot_ly(
+  data = filtered_data,
+  x = ~id,
+  y = ~marrow_total_live_cell_count,
+  type = "bar",
+  color = ~trt, 
+  colors = pal,
+  marker = list(line = list(width = 2)),  # Adjust the width of the bars
+  hoverinfo = "text",
+  text = ~paste(
+    "ID: ", id,
+    "<br>Total Live Marrow Count:", sprintf("%.2e", marrow_total_live_cell_count),
+    "<br>Viability:", marrow_cell_viability,
+    "<br>", number_of_marrow_cryovials, "cryovial(s) at", sprintf("%.2e", cryovial_marrow_cell_total), " cells each",
+    "<br>Death date:", death_date,
+    "<br>Manner of death:", manner_of_death
+  )
+) %>%
+  layout(
+    xaxis = list(
+      title = "Mouse ID",
+      tickvals = filtered_data$id,  # Show ticks only for IDs in filtered data
+      ticktext = filtered_data$id   # Show tick labels corresponding to the IDs
+    ),
+    yaxis = list(title = "Marrow Total Live Cell Count"),
     images = list(
       source = src,  # Ensure 'src' is defined and points to a valid image
       xref = "paper",
@@ -655,7 +683,10 @@ processed_data <- read.csv("data/processed/processed_data.csv")
 
 # Select the desired columns and format trt
 most_recent_data <- processed_data %>%
-  select(cage_number, id, ear_punch, trt, imaging_date, total_flux, avg_radiance, death_date, manner_of_death)
+  select(cage_number, id, ear_punch, trt, imaging_date, total_flux, avg_radiance, death_date, manner_of_death) %>% 
+mutate(total_flux = sprintf("%.2e", total_flux),
+avg_radiance = sprintf("%.2e", avg_radiance)
+)
 
 # Create a .csv file of current mice data with the most recent imaging_date
 processed_data %>%
@@ -686,9 +717,6 @@ datatable(most_recent_data,
 raw_mass <- read.csv("data/raw/raw_mass.csv")
 processed_data <- read.csv("data/processed/processed_data.csv")
 
-# Applying the function to the mass_date column in mass_data
-raw_mass$mass_date <- convert_date_format(raw_mass$mass_date)
-
 # Assuming you've handled duplicates in combined_data
 combined_data <- raw_mass %>%
   inner_join(processed_data, by = "id")
@@ -710,6 +738,32 @@ p <- ggplotly(p)
 p
 ```
 
+### Experimental Diagram
+
+```{dot}
+//| label: fig-simple
+//| fig-cap: "Diagram showing the distribution of 25 mice following tumor injection. The mice are divided into five groups of 5 each: Treatment A, Treatment B, Treatment C, Treatment D, and Non-study."
+
+digraph {
+    A [label="25 Mice", shape=circle, style=filled];
+    B [label="Tumor Injection", shape=circle, style=filled];
+
+    A -> B;
+
+    C [label="Treatment A", shape=circle, style=filled];
+    D [label="Treatment B", shape=circle, style=filled];
+    E [label="Treatment C", shape=circle, style=filled];
+    F [label="Treatment D", shape=circle, style=filled];
+    G [label="Non-study", shape=circle, style=filled];
+
+    B -> C [label="5 mice"];
+    B -> D [label="5 mice"];
+    B -> E [label="5 mice"];
+    B -> F [label="5 mice"];
+    B -> G [label="5 mice"];
+}
+```
+
 ### Engraftment Status
 
 ```{r Engraftment Status}
@@ -729,19 +783,20 @@ filtered_data <- processed_data %>%
   filter(imaging_date <= engraftment_imaging_date)
 
 # Create the Plotly plot
-plot_ly(filtered_data, 
-        x = ~factor(id, levels = order_by_flux), 
-        y = ~total_flux, 
-        type = 'scatter', 
-        mode = 'markers',
-        marker = list(color = ~factor(imaging_date), 
-                      colors = color_palette),
-        hoverinfo = "text", 
-    text = ~paste(
+plot_ly(
+  filtered_data, 
+  x = ~factor(id, levels = order_by_flux), 
+  y = ~total_flux, 
+  type = 'scatter', 
+  mode = 'markers',
+  color = ~factor(imaging_date),  # Correctly map color to imaging_date
+  hoverinfo = "text", 
+  text = ~paste(
     "ID:", id,
     "<br>Flux:", sprintf("%.2e", total_flux),
     "<br>Injection quality:", tumor_injection_quality
-  )) %>%
+  )
+) %>%
   layout(
     xaxis = list(title = "Mouse Number"),
     yaxis = list(title = "Total Flux", type = "log"),  # Log scale for y-axis
@@ -765,15 +820,6 @@ mice_less_than_1e6 <- processed_data %>%
 # Get the specific mouse numbers for mice with total_flux <= 1e6
 specific_mice_numbers <- processed_data %>% filter(total_flux <= 1e6) %>% select(id)
 
-# Create a table
-table_data <- data.frame(
-  "Engrafted" = mice_greater_than_1e6,
-  "Not Engrafted" = mice_less_than_1e6
-)
-
-# Print the table
-table_data
-
 # Find the mouse numbers that are not engrafted, check if there are non-engrafted mice, and return the numbers
 processed_data %>%
   filter(total_flux <= 1e6, imaging_date == engraftment_imaging_date) %>%
@@ -787,7 +833,7 @@ processed_data %>%
   }
 ```
 
-Seed with the least variability: `r best_seed`
+The seed used is `r best_seed`.
 
 ```{r Treatment Assignment Plot From Engraftment Imaging Date}
 #| title: "Treatment Assignment"
@@ -883,14 +929,6 @@ print(scatterplot)
 ```{r Euthanasia Criteria Check}
 #| title: "Euthanasia Criteria Check"
 
-# Function to check and convert the date format
-convert_date_format <- function(date_column) {
-  # Try parsing as mm/dd/yyyy, and if it fails, parse as yyyy-mm-dd
-  date_column <- mdy(date_column)  # Parse as mm/dd/yyyy
-  date_column[is.na(date_column)] <- ymd(date_column[is.na(date_column)])  # Parse remaining as yyyy-mm-dd
-  return(date_column)
-}
-
 # Load data
 processed_data <- read.csv("data/processed/processed_data.csv")
 
@@ -909,14 +947,11 @@ high_flux_mice <- processed_data %>%
 # Read the 'raw_mass.csv' file into a data frame
 raw_mass <- read.csv("data/raw/raw_mass.csv")
 
-# Applying the function to the mass_date column in mass_data
-raw_mass$mass_date <- convert_date_format(raw_mass$mass_date)
-
 # Combine 'raw_mass' with 'processed_data'
 processed_data <- left_join(processed_data, raw_mass, by = "id")
 
 # Check if there are any alive mice (death_date is NA)
-any_alive <- any(is.na(processed_data$death_date))
+any_alive <- any(is.na(processed_data$death_date) | processed_data$death_date == "")
 
 if (any_alive) {
   # Convert mass_date to Date format
@@ -977,7 +1012,9 @@ if (any_alive) {
 
 ### Comments
 
-- Test
+- Lights in animal rooms are programmed for 12 hour (6:15AM/ 6:15PM) ON/OFF cycles.
+- The recommended dry bulb temperature range for animal rooms is 68-74F, with an acceptable fluctuation range of (+/-2F).
+- The recommended relative humidity (RH%) for animal rooms is 30-70%.
 
 # Statistical Analyses 
 
@@ -1004,39 +1041,67 @@ if (save_output == "y") {
 }
 ```
 
-```{r ANOVA}
-#| title: "ANOVA"
+```{r Generalized Linear Model}
+#| title: "Generalized Linear Model"
 
+# Load processed data
+processed_data <- read.csv("data/processed/processed_data.csv")
+
+# Log-transform total_flux to handle exponential growth
+processed_data <- processed_data %>%
+  mutate(log_total_flux = log(total_flux))
+
+# Fit the GLM with a Gaussian family
+m1 <- glm(log_total_flux ~ trt, data = processed_data, family = gaussian)
+
+tbl_regression(m1, exponentiate = TRUE)
+```
+
+```{r Mixed-Effects Model}
+#| title: "Mixed-Effects Model"
+
+# Specify the width of the output so columns do not get pushed to a new line
+options(width = 120)
+
+# Read the processed data
 processed_data <- read.csv("data/processed/processed_data.csv")
 
 tryCatch(
   {
-    anova <- jmv::ANOVA(
-      formula = total_flux ~ imaging_date + trt + imaging_date:trt,
-      data = processed_data,
-      effectSize = "eta",
-      homo = TRUE,
-      norm = TRUE,
-      postHoc = ~ trt + imaging_date,
-      postHocCorr = c("tukey", "bonf"),
-      postHocES = "d",
-      postHocEsCi = TRUE,
-      emmPlots = FALSE
-    )
-    # Check if save_output is equal to "y"
-if (save_output == "y") {
-  # Save ANOVA results as a .txt file
-  capture.output(anova, file = "data/processed/anova.txt", append = TRUE)
-}
+    # Log transformation of the outcome variable (if total_flux is log-transformed)
+    processed_data$log_total_flux <- log(processed_data$total_flux)
 
-    # Display ANOVA results
-    anova
+    # Fit a mixed-effects model
+    # Using (1 | subject) assuming 'subject' is a variable to account for random effects
+    # Also, adding interaction term for imaging_date * trt to see treatment differences over time
+    model <- lmer(log_total_flux ~ imaging_date * trt + (1|id), data = processed_data)
+
+    # Display the summary of the model
+    model_summary <- summary(model)
+    print(model_summary)
+
+    # If save_output is "y", save the results as a .txt file
+    if (save_output == "y") {
+      capture.output(model_summary, file = "data/processed/mixed_effects_model.txt", append = TRUE)
+    }
+
+    # Return the model summary
+    model_summary
+
+    # Compare the treatment levels and their interactions with imaging dates, adjusting for the random subject effect
+    # Using emmeans for pairwise comparisons between treatment groups
+    emms <- emmeans(model, ~ trt | imaging_date)
+
+    # Adjust for multiple comparisons with Tukey method
+    contrast_results <- contrast(emms, method = "pairwise", adjust = "tukey")
+    print(contrast_results)
+
   },
   error = function(e) {
     if (grepl("incorrect number of dimensions", e$message)) {
-      cat("Error: The data has incorrect dimensions for ANOVA analysis.\n")
+      cat("Error: The data has incorrect dimensions for mixed-effects model analysis.\n")
     } else {
-      cat("Error occurred during ANOVA analysis:\n")
+      cat("Error occurred during mixed-effects model analysis:\n")
       cat(e$message, "\n")
     }
   }

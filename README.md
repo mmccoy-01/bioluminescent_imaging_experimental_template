@@ -26,6 +26,7 @@ Here is the folder hierarchy:
 - **experiment_name/**
   - *experiment_name.qmd*: Quarto file for knitting experimental documentation into a dashboard with shiny app and plotly configuration
   - *README.md*: Documentation and support file for understanding experimental nuances amd folder hierarchy
+  - *renv.lock*: Records package versions and dependencies for reproducibility
   - **data/**
     - **imaging/**
       - **processed/**
@@ -60,6 +61,7 @@ Here is the folder hierarchy:
 graph LR
 experiment_name --> experiment_name.qmd
 experiment_name --> README.md
+experiment_name --> renv.lock
 experiment_name --> data
 
 data --> imaging
