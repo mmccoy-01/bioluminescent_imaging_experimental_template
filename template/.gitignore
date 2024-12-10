@@ -1,0 +1,8 @@
+# Ignore tracking the html output files that is created when .qmd is ran
+/*_files/
+
+# Ignore tracking the .html output that is created when .qmd is ran
+/*.html
+
+# Ignore all .db files
+*.db
