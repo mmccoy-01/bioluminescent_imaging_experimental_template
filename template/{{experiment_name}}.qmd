@@ -677,31 +677,34 @@ iwalk(plots, ~ {
 
 ### Row
 
-```{r Study Mice Data}
+```{r Mice Data}
+#| title: "Mice Data"
+
 # Load data
 processed_data <- read.csv("data/processed/processed_data.csv")
 
-# Select the desired columns and format trt
-most_recent_data <- processed_data %>%
-  select(cage_number, id, ear_punch, trt, imaging_date, total_flux, avg_radiance, death_date, manner_of_death) %>% 
-mutate(total_flux = sprintf("%.2e", total_flux),
-avg_radiance = sprintf("%.2e", avg_radiance)
-)
-
-# Create a .csv file of current mice data with the most recent imaging_date
-processed_data %>%
-  select(cage_number, id, ear_punch, trt, dob, imaging_date, total_flux, avg_radiance, death_date, manner_of_death) %>% 
-  group_by(id) %>%
+# Process the data
+mice_data <- processed_data %>%
+  select(cage_number, id, ear_punch, trt, dob, imaging_date, total_flux, avg_radiance, death_date, manner_of_death) %>%
   arrange(desc(imaging_date)) %>%
-  slice(1) %>%  # Keep only the rows with the most recent imaging_date for each id
-  mutate(weeks_old = round(as.numeric(difftime(Sys.Date(), ymd(dob), units = "weeks")), 1)) %>%  # Calculate and round weeks_old
-  select(cage_number, id, ear_punch, trt, imaging_date, total_flux, avg_radiance, weeks_old, death_date, manner_of_death) %>%
-  write.csv(file = "data/processed/current_mice_data.csv", row.names = FALSE)
+  mutate(
+    weeks_old = round(as.numeric(difftime(Sys.Date(), ymd(dob), units = "weeks")), 1),
+    total_flux = sprintf("%.2e", total_flux),
+    avg_radiance = sprintf("%.2e", avg_radiance)
+  ) %>%
+  select(cage_number, id, ear_punch, trt, imaging_date, total_flux, avg_radiance, weeks_old, death_date, manner_of_death) %>% 
+  arrange(desc(imaging_date), id)
 
-# Create an interactive DataTable with initial sorting and exclude the ear_punch column
-datatable(most_recent_data, 
-          options = list(pageLength = 20, scrollX = TRUE, order = list(list(5, 'asc'), list(2, 'asc')),
-          columnDefs = list(list(targets = 3, visible = FALSE))))
+# Render the datatable with download button
+datatable(mice_data, 
+          extensions = 'Buttons',
+          options = list(
+            pageLength = 20,
+            scrollX = TRUE,
+            dom = 'Bfrtip',  # Buttons at the top
+            buttons = c('csv')  # CSV download button
+          )
+)
 ```
 
 # Subjects
