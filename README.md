@@ -27,6 +27,7 @@ Here is the folder hierarchy:
   - *experiment_name.qmd*: Quarto file for knitting experimental documentation into a dashboard with shiny app and plotly configuration
   - *README.md*: Documentation and support file for understanding experimental nuances amd folder hierarchy
   - *renv.lock*: Records package versions and dependencies for reproducibility
+  - *manifest.json*: Records the project's package dependencies and versions, ensuring consistent and reproducible environments across collaborators using `renv`.
   - **data/**
     - **imaging/**
       - **processed/**
@@ -46,7 +47,6 @@ Here is the folder hierarchy:
       - ...
     - **processed/**
       - *processed_data.csv*: Contains all experimental data
-      - *mouse_current_data.csv*: Contains currently relevant mouse data for tracking (used for physical printing)
       - *anova.txt*: ANOVA output
       - *descriptives.txt*: Descriptives output
       - *spleen_images/*: Contains images of harvested spleens
@@ -103,3 +103,6 @@ data --> F(raw)
 F(raw) --> raw_data.csv
 F(raw) --> raw_mass.csv
 ```
+
+# Help
+- If a package error occurs, run `renv::restore()` to ensure the project's library matches the package versions and dependencies specified in the `renv.lock` file.
