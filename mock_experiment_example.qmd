@@ -839,7 +839,7 @@ processed_data %>%
   }
 ```
 
-The seed used is `r best_seed`.
+The seed used is `r format(best_seed, scientific = FALSE)`.
 
 ```{r Treatment Assignment Plot From Engraftment Imaging Date}
 #| title: "Treatment Assignment"
