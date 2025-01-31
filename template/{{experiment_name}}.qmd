@@ -152,8 +152,6 @@ write_csv(processed_data, file = "data/processed/processed_data.csv")
 ```
 
 ```{r Treatment Assignment}
-#| output: FALSE
-
 # Load processed data
 processed_data <- read.csv("data/processed/processed_data.csv")
 
@@ -234,6 +232,29 @@ processed_data <- processed_data %>%
     trt_factor = as.numeric(as.character(trt))
   ) %>%
   relocate(trt, .before = trt_injection_vial)
+
+# If manually assigning mice, follow format below:
+# Ensure IDs are mapped correctly to treatment groups
+#processed_data <- processed_data %>%
+  #mutate(trt_factor = as.numeric(case_when(
+    #id %in% c(16, 19, 27, 28) ~ 0,
+    #id %in% c(17, 18, 23, 25, 26) ~ 1,
+    #id %in% c(20, 21, 22, 24, 29) ~ 2,
+    #id %in% c(11, 12, 13, 14, 15) ~ 3,
+    #id %in% c(1, 2, 3, 4, 5) ~ 4,
+    #id %in% c(6, 7, 8, 9, 10) ~ 5,
+    #TRUE ~ NA_real_  # Ensure no missing values
+  #))) %>%
+  #mutate(trt = case_when(
+    #id %in% c(16, 19, 27, 28) ~ "0",  # Ensure exact match with `labels`
+    #id %in% c(17, 18, 23, 25, 26) ~ "1",
+    #id %in% c(20, 21, 22, 24, 29) ~ "2",
+    #id %in% c(11, 12, 13, 14, 15) ~ "3",
+    #id %in% c(1, 2, 3, 4, 5) ~ "4",
+    #id %in% c(6, 7, 8, 9, 10) ~ "5",
+    #TRUE ~ NA_character_
+  #)) %>%
+  #mutate(trt = factor(trt, levels = names(labels), labels = labels))  # Correct factor conversion
 
 # Write the updated processed_data to a CSV file
 write_csv(processed_data, file = "data/processed/processed_data.csv")
