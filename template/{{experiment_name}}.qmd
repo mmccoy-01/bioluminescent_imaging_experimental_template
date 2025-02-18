@@ -959,81 +959,57 @@ print(scatterplot)
 # Load data
 processed_data <- read.csv("data/processed/processed_data.csv")
 
-# Find the most recent imaging date
-most_recent_imaging_date <- processed_data %>%
-  filter(!is.na(imaging_date)) %>%
-  summarize(most_recent = max(imaging_date, na.rm = TRUE)) %>%
-  pull(most_recent)
+# Ensure imaging_date is in Date format if necessary
+processed_data$imaging_date <- as.Date(processed_data$imaging_date, format = "%Y-%m-%d")
 
-# Find mice with total_flux >= 2e10 from the most recent imaging_date
+# Find the most recent imaging date
+most_recent_imaging_date <- max(processed_data$imaging_date, na.rm = TRUE)
+
+# Find high-flux mice (alive and meeting criteria)
 high_flux_mice <- processed_data %>%
   filter(imaging_date == most_recent_imaging_date,
-         total_flux >= 2e+10,
-         death_date == "")  # Correct filter to find only alive mice
+         total_flux >= 2e10,
+         is.na(death_date) | death_date == "")
 
-# Read the 'raw_mass.csv' file into a data frame
+# Read and merge mass data
 raw_mass <- read.csv("data/raw/raw_mass.csv")
-
-# Combine 'raw_mass' with 'processed_data'
 processed_data <- left_join(processed_data, raw_mass, by = "id")
 
-# Check if there are any alive mice (death_date is NA)
-any_alive <- any(is.na(processed_data$death_date) | processed_data$death_date == "")
+# Convert mass_date to Date format
+processed_data$mass_date <- as.Date(processed_data$mass_date, format = "%Y-%m-%d")
 
-if (any_alive) {
-  # Convert mass_date to Date format
-  processed_data <- processed_data %>%
-    mutate(mass_date = as.Date(mass_date, format = "%Y-%m-%d"))
+# Check for any alive mice
+if (any(is.na(processed_data$death_date) | processed_data$death_date == "")) {
+  
+  # Calculate mass loss
+  mass_loss_mice <- processed_data %>%
+    filter(!is.na(mass_date)) %>%
+    group_by(id) %>%
+    summarize(
+      oldest_mass_date = min(mass_date, na.rm = TRUE),
+      newest_mass_date = max(mass_date, na.rm = TRUE),
+      .groups = 'drop'
+    ) %>%
+    mutate(
+      days_between = as.numeric(difftime(newest_mass_date, oldest_mass_date, units = "days")),
+      mass_loss_percentage = ifelse(days_between > 0, (days_between / as.numeric(oldest_mass_date)) * 100, NA)
+    ) %>%
+    filter(mass_loss_percentage >= 20) %>%
+    select(id)
+  
+  # Mice to euthanize
+  mice_to_euthanize <- unique(c(high_flux_mice$id, mass_loss_mice$id))
 
-  # Ensure that all relevant columns are present and correctly formatted
-  if ("mass_date" %in% colnames(processed_data)) {
-    # Find the oldest and newest mass_date for each mouse
-    mass_date_summary <- processed_data %>%
-      filter(!is.na(mass_date)) %>%
-      group_by(id) %>%
-      summarize(
-        oldest_mass_date = min(mass_date, na.rm = TRUE),
-        newest_mass_date = max(mass_date, na.rm = TRUE),
-        .groups = 'drop'
-      )
-
-    # Calculate the mass loss percentage for each mouse
-    mass_loss <- mass_date_summary %>%
-      mutate(
-        id = as.character(id),  # Convert id to character
-        # Ensure that we calculate the difference in days between dates
-        days_between = as.numeric(difftime(newest_mass_date, oldest_mass_date, units = "days")),
-        # Assuming the oldest_mass_date is the baseline for loss percentage
-        mass_loss_percentage = ifelse(days_between > 0, (days_between / as.numeric(oldest_mass_date)) * 100, NA)
-      )
-
-    # Find mice meeting the mass loss criterion (20% or more loss)
-    mass_loss_mice <- mass_loss %>%
-      filter(!is.na(oldest_mass_date), !is.na(newest_mass_date),  # Exclude mice with missing mass dates
-             mass_loss_percentage >= 20) %>%
-      select(id)
-
-    # Combine the two sets of mice that meet either criterion
-    mice_to_euthanize <- union(high_flux_mice$id, mass_loss_mice$id)
-
-    # Check if there are any mice to euthanize based on either criterion
-    if (length(mice_to_euthanize) > 0) {
-      if (length(high_flux_mice$id) > 0) {
-        cat("With respect to the IACUC protocol, you need to euthanize mouse number(s) meeting the following humane endpoint criteria:\n")
-        cat("- Total flux greater than or equal to 2x10^10:", paste(high_flux_mice$id, collapse = ", "), "\n")
-      }
-
-      if (length(mass_loss_mice$id) > 0) {
-        cat("- Mass loss of 20% or more:", paste(mass_loss_mice$id, collapse = ", "), "\n")
-      }
-    } else {
-      cat("No mice meet the criteria for euthanasia.")
-    }
+  if (length(mice_to_euthanize) > 0) {
+    cat("With respect to IACUC protocol, euthanize the following mice:\n")
+    if (nrow(high_flux_mice) > 0) cat("- High total flux:", paste(high_flux_mice$id, collapse = ", "), "\n")
+    if (nrow(mass_loss_mice) > 0) cat("- Significant mass loss:", paste(mass_loss_mice$id, collapse = ", "), "\n")
   } else {
-    cat("mass_date column is missing or not correctly formatted.")
+    cat("No mice meet euthanasia criteria.\n")
   }
+
 } else {
-  cat("All mice are dead. No further action is required.")
+  cat("All mice are deceased. No action needed.\n")
 }
 ```
 
