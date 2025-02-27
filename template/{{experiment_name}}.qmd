@@ -311,7 +311,7 @@ output$scatter_plot <- renderPlotly({
       plot_ly(x = ~days_from_trt + runif(length(days_from_trt), -0.3, 0.3), y = ~get(input$y_axis),
               type = 'scatter', mode = 'lines+markers',
               color = ~trt, colors = pal,
-              symbol = ~trt, symbols = shapes,  # Assign marker shapes here
+              symbol = ~trt, symbols = shapes,
               marker = list(size = 10),
               legendgroup = ~trt,
               name = ~trt,
@@ -352,6 +352,19 @@ output$scatter_plot <- renderPlotly({
         ),
         shapes = list(
           list(type = "line", y0 = 0, y1 = 1, yref = "paper", x0 = as.numeric(as.Date(processed_data$tumor_injection_date[1], format = "%Y-%m-%d") - as.Date(processed_data$trt_injection_date[1], format = "%Y-%m-%d")), x1 = as.numeric(as.Date(processed_data$tumor_injection_date[1], format = "%Y-%m-%d") - as.Date(processed_data$trt_injection_date[1], format = "%Y-%m-%d")), line = list(color = "black", dash = "dot"))
+        ),
+        annotations = list(
+          list(
+            x = 1,  # Right side of the plot
+            y = 1,  # Top of the plot
+            xref = "paper",
+            yref = "paper",
+            text = paste("Tumor Injection:", input$pdx),
+            showarrow = FALSE,
+            xanchor = "right",
+            yanchor = "top",
+            font = list(size = 14, color = "black")
+          )
         )
       ) %>%
       config(scrollZoom = TRUE, modeBarButtonsToAdd = list('drawopenpath'))
@@ -367,7 +380,7 @@ output$scatter_plot <- renderPlotly({
       plot_ly(x = ~days_from_trt + runif(length(days_from_trt), -0.3, 0.3), y = ~y_value,
               type = 'scatter', mode = 'lines+markers',
               color = ~trt, colors = pal,
-              symbol = ~trt, symbols = shapes,  # Assign marker shapes here
+              symbol = ~trt, symbols = shapes,
               marker = list(size = 10),
               legendgroup = ~trt,
               name = ~trt,
@@ -405,6 +418,19 @@ output$scatter_plot <- renderPlotly({
         ),
         shapes = list(
           list(type = "line", y0 = 0, y1 = 1, yref = "paper", x0 = as.numeric(as.Date(processed_data$tumor_injection_date[1], format = "%Y-%m-%d") - as.Date(processed_data$trt_injection_date[1], format = "%Y-%m-%d")), x1 = as.numeric(as.Date(processed_data$tumor_injection_date[1], format = "%Y-%m-%d") - as.Date(processed_data$trt_injection_date[1], format = "%Y-%m-%d")), line = list(color = "black", dash = "dot"))
+        ),
+        annotations = list(
+          list(
+            x = 1,  
+            y = 1,  
+            xref = "paper",
+            yref = "paper",
+            text = paste("Tumor Injection:", input$pdx),
+            showarrow = FALSE,
+            xanchor = "right",
+            yanchor = "top",
+            font = list(size = 14, color = "black")
+          )
         )
       ) %>%
       config(scrollZoom = TRUE, modeBarButtonsToAdd = list('drawopenpath'))
