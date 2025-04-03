@@ -13,7 +13,6 @@ format:
     theme:
       light: cerulean
       dark: darkly
-server: shiny
 ---
 
 ```{r Setup}
@@ -264,192 +263,14 @@ write_csv(processed_data, file = "data/processed/processed_data.csv")
 
 ## Column
 
-### {.toolbar}
-
-```{r Treatment Plot Sidebar}
-selectInput("pdx", "PDX:",
-            choices = unique(processed_data$tumor_injection),
-            selected = unique(processed_data$tumor_injection)[1])
-selectInput("y_axis", "Y-axis:",
-            choices = c("Flux" = "total_flux", "Radiance" = "avg_radiance"),
-            selected = "total_flux")
-checkboxInput("include_non_study", "Include non-study mice", value = FALSE)
-selectInput("calculation_type", "Calculation Type:",
-            choices = c("Mean", "Median", "Individual"),
-            selected = "Mean")
-```
-
 ### Row {.tabset}
 
-```{r Treatment Plot Shiny App Server}
-#| context: server
-
-# Load data
-processed_data <- read.csv("data/processed/processed_data.csv") %>%
-  mutate(days_from_trt = floor(as.numeric(difftime(imaging_date, as.Date(trt_injection_date[1], format = "%Y-%m-%d"), units = "days")))) %>% 
-  relocate(days_from_trt, .before = imaging_date)
-
-# Create reactive dataset based on PDX and toggle selection
-selected_data <- reactive({
-  data <- processed_data[processed_data$tumor_injection == input$pdx, ]
-  if (!input$include_non_study) {
-    data <- data[data$trt != "Non-study", ]
-  }
-  data
-})
-
-# Render Plotly scatter plot
-output$scatter_plot <- renderPlotly({
-  y_axis_title <- if (input$y_axis == "total_flux") "Flux [p/s]" else "Radiance [p/s/cm^2/sr]"
-  y_axis_label <- if (input$y_axis == "total_flux") "Flux" else "Radiance"
-
-  # Calculate values based on the selected calculation type
-  if (input$calculation_type == "Individual") {
-    p <- selected_data() %>%
-      mutate(trt = reorder(trt, trt_factor)) %>%
-      group_by(trt, id) %>%
-      plot_ly(x = ~days_from_trt + runif(length(days_from_trt), -0.3, 0.3), y = ~get(input$y_axis),
-              type = 'scatter', mode = 'lines+markers',
-              color = ~trt, colors = pal,
-              symbol = ~trt, symbols = shapes,
-              marker = list(size = 10),
-              legendgroup = ~trt,
-              name = ~trt,
-              hoverinfo = "text",
-              text = ~paste("Imaging Date: ", imaging_date, "<br>ID: ", id, "<br>", y_axis_label, ": ", sprintf("%.2e", get(input$y_axis)),
-                            "<br>Tumor inj quality: ", tumor_injection_quality,
-                            "<br>Treatment inj quality: ", trt_injection_quality
-                            )) %>%
-      layout(
-        yaxis = list(
-          type = "log",
-          title = y_axis_title
-        ),
-        xaxis = list(
-          type = "linear",
-          title = "Days from Treatment",
-          tickmode = "array",
-          tickvals = c(unique(selected_data()$days_from_trt), as.numeric(as.Date(processed_data$tumor_injection_date[1], format = "%Y-%m-%d") - as.Date(processed_data$trt_injection_date[1], format = "%Y-%m-%d"))),
-          ticktext = c(as.character(unique(selected_data()$days_from_trt)),
-                       paste(as.numeric(as.Date(processed_data$tumor_injection_date[1], format = "%Y-%m-%d") - as.Date(processed_data$trt_injection_date[1], format = "%Y-%m-%d"))))
-        ),
-        showlegend = TRUE,
-        legend = list(orientation = "h",
-                      x = 0.5,
-                      xanchor = "center",
-                      y = -0.22,
-                      title = "Treatment"
-                      ),
-        images = list(
-          source = src,
-          xref = "paper",
-          yref = "paper",
-          x = 0,
-          y = 1,
-          sizex = 0.2,
-          sizey = 0.2,
-          opacity = 0.8
-        ),
-        shapes = list(
-          list(type = "line", y0 = 0, y1 = 1, yref = "paper", x0 = as.numeric(as.Date(processed_data$tumor_injection_date[1], format = "%Y-%m-%d") - as.Date(processed_data$trt_injection_date[1], format = "%Y-%m-%d")), x1 = as.numeric(as.Date(processed_data$tumor_injection_date[1], format = "%Y-%m-%d") - as.Date(processed_data$trt_injection_date[1], format = "%Y-%m-%d")), line = list(color = "black", dash = "dot"))
-        ),
-        annotations = list(
-          list(
-            x = 1,  # Right side of the plot
-            y = 1,  # Top of the plot
-            xref = "paper",
-            yref = "paper",
-            text = paste("Tumor Injection:", input$pdx),
-            showarrow = FALSE,
-            xanchor = "right",
-            yanchor = "top",
-            font = list(size = 14, color = "black")
-          )
-        )
-      ) %>%
-      config(scrollZoom = TRUE, modeBarButtonsToAdd = list('drawopenpath'))
-  } else {
-    data_summary <- selected_data() %>%
-      mutate(trt = reorder(trt, trt_factor)) %>%
-      group_by(days_from_trt, trt, imaging_date) %>%
-      summarise(y_value = ifelse(input$calculation_type == "Mean", mean(get(input$y_axis)),
-                                 median(get(input$y_axis))))
-
-    p <- data_summary %>%
-      group_by(trt) %>%
-      plot_ly(x = ~days_from_trt + runif(length(days_from_trt), -0.3, 0.3), y = ~y_value,
-              type = 'scatter', mode = 'lines+markers',
-              color = ~trt, colors = pal,
-              symbol = ~trt, symbols = shapes,
-              marker = list(size = 10),
-              legendgroup = ~trt,
-              name = ~trt,
-              hoverinfo = "text",
-              text = ~paste("Imaging Date: ", imaging_date, "<br>", y_axis_label, ": ", sprintf("%.2e", y_value))) %>%
-      layout(
-        yaxis = list(
-          type = "log",
-          title = y_axis_title
-        ),
-        xaxis = list(
-          type = "linear",
-          title = "Days from Treatment",
-          tickmode = "array",
-          tickvals = c(unique(data_summary$days_from_trt), as.numeric(as.Date(processed_data$tumor_injection_date[1], format = "%Y-%m-%d") - as.Date(processed_data$trt_injection_date[1], format = "%Y-%m-%d"))),
-          ticktext = c(as.character(unique(data_summary$days_from_trt)),
-                       paste(as.numeric(as.Date(processed_data$tumor_injection_date[1], format = "%Y-%m-%d") - as.Date(processed_data$trt_injection_date[1], format = "%Y-%m-%d"))))
-        ),
-        showlegend = TRUE,
-        legend = list(orientation = "h",
-                      x = 0.5,
-                      xanchor = "center",
-                      y = -0.22,
-                      title = "Treatment"
-                      ),
-        images = list(
-          source = src,
-          xref = "paper",
-          yref = "paper",
-          x = 0,
-          y = 1,
-          sizex = 0.2,
-          sizey = 0.2,
-          opacity = 0.8
-        ),
-        shapes = list(
-          list(type = "line", y0 = 0, y1 = 1, yref = "paper", x0 = as.numeric(as.Date(processed_data$tumor_injection_date[1], format = "%Y-%m-%d") - as.Date(processed_data$trt_injection_date[1], format = "%Y-%m-%d")), x1 = as.numeric(as.Date(processed_data$tumor_injection_date[1], format = "%Y-%m-%d") - as.Date(processed_data$trt_injection_date[1], format = "%Y-%m-%d")), line = list(color = "black", dash = "dot"))
-        ),
-        annotations = list(
-          list(
-            x = 1,  
-            y = 1,  
-            xref = "paper",
-            yref = "paper",
-            text = paste("Tumor Injection:", input$pdx),
-            showarrow = FALSE,
-            xanchor = "right",
-            yanchor = "top",
-            font = list(size = 14, color = "black")
-          )
-        )
-      ) %>%
-      config(scrollZoom = TRUE, modeBarButtonsToAdd = list('drawopenpath'))
-  }
-
-  p
-})
-
-# Render data table
-output$data <- renderTable({
-  selected_data()
-})
+::: {.cell}
+```{r, echo=FALSE, results="asis"}
+writeLines('<iframe src="https://mmccoy-01.shinyapps.io/treatment_plot_app/" width="100%" height="600px" style="border:none;"></iframe>')
 ```
+:::
 
-```{r Treatment Plot Output}
-#| title: "Treatment Plot"
-
-plotlyOutput("scatter_plot")
-```
 
 ```{r Kaplan-Meier Curve}
 #| title: "Kaplan-Meier Curve"
