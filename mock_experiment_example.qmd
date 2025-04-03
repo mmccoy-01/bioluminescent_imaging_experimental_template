@@ -265,12 +265,14 @@ write_csv(processed_data, file = "data/processed/processed_data.csv")
 
 ### Row {.tabset}
 
-::: {.cell}
-```{r, echo=FALSE, results="asis"}
-writeLines('<iframe src="https://mmccoy-01.shinyapps.io/treatment_plot_app/" width="100%" height="600px" style="border:none;"></iframe>')
-```
-:::
+```{r Treatment Plot}
+#| title: "Treatment Plot"
+#| echo: false
+#| results: asis
 
+# Embed iframe directing to shinyapp instance of treatment plot app
+writeLines('<div title="Treatment Plot"><iframe src="https://mmccoy-01.shinyapps.io/treatment_plot_app/" width="100%" height="600px" style="border:none;"></iframe></div>')
+```
 
 ```{r Kaplan-Meier Curve}
 #| title: "Kaplan-Meier Curve"
