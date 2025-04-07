@@ -228,10 +228,10 @@ result <- assign_groups(filtered_data, num_arms, num_per_arm)
 processed_data <- processed_data %>%
   left_join(result$Data %>% select(id, trt), by = "id") %>%
   mutate(
-    trt = factor(ifelse(is.na(trt), "0", as.character(trt)), levels = names(labels), labels = labels),
-    trt_factor = as.numeric(as.character(trt))
+    trt_factor = trt,
+    trt = factor(trt, levels = as.integer(names(labels)), labels = labels)
   ) %>%
-  relocate(trt, .before = trt_injection_vial)
+  relocate(trt, .after = trt_factor)
 
 # If manually assigning mice, follow format below:
 # Ensure IDs are mapped correctly to treatment groups
