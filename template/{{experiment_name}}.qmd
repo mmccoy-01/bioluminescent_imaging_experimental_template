@@ -301,7 +301,14 @@ selected_data <- reactive({
 # Render Plotly scatter plot
 output$scatter_plot <- renderPlotly({
   y_axis_title <- if (input$y_axis == "total_flux") "Flux [p/s]" else "Radiance [p/s/cm^2/sr]"
-  y_axis_label <- if (input$y_axis == "total_flux") "Flux" else "Radiance"
+  # Determine Y-axis title based on calculation type and measurement
+calc_label <- switch(input$calculation_type,
+                     "Mean" = "Mean",
+                     "Median" = "Median",
+                     "Individual" = "Individual")
+base_label <- if (input$y_axis == "total_flux") "Flux [p/s]" else "Radiance [p/s/cm^2/sr]"
+y_axis_label <- if (input$y_axis == "total_flux") "Flux" else "Radiance"
+y_axis_title <- paste(calc_label, base_label)
 
   # Calculate values based on the selected calculation type
   if (input$calculation_type == "Individual") {
