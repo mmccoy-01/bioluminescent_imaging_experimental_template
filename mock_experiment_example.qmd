@@ -112,8 +112,8 @@ read_process_save_csv <- function(file) {
   # Read the CSV file into a data frame, preserving original column names.
   df <- read.csv(file, check.names = FALSE)
   
-  # Rename the fourth column to 'avg_radiance' to handle any issues with special characters.
-  colnames(df)[4] <- "avg_radiance"
+  # Rename the fifth column to 'avg_radiance' to handle any issues with special characters.
+  colnames(df)[5] <- "avg_radiance"
   
   # Remove unnecessary columns that won't be used for analysis.
   columns_to_remove <- c("Image Number", "ROI", "Image Layer", 
