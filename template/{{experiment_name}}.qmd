@@ -264,7 +264,7 @@ write_csv(processed_data, file = "data/processed/processed_data.csv")
 
 ## Column
 
-### {.toolbar}
+###  {.toolbar}
 
 ```{r Treatment Plot Sidebar}
 selectInput("pdx", "PDX:",
@@ -277,6 +277,7 @@ checkboxInput("include_non_study", "Include non-study mice", value = FALSE)
 selectInput("calculation_type", "Calculation Type:",
             choices = c("Mean", "Median", "Individual"),
             selected = "Mean")
+checkboxInput("log_scale", "Log Scale", value = TRUE)
 ```
 
 ### Row {.tabset}
@@ -327,11 +328,11 @@ y_axis_title <- paste(calc_label, base_label)
                             "<br>Tumor inj quality: ", tumor_injection_quality,
                             "<br>Treatment inj quality: ", trt_injection_quality
                             )) %>%
-      layout(
-        yaxis = list(
-          type = "log",
-          title = y_axis_title
-        ),
+layout(
+  yaxis = list(
+    type = if (input$log_scale) "log" else "linear",
+    title = y_axis_title
+  ),
         xaxis = list(
           type = "linear",
           title = "Days from Treatment",
@@ -393,11 +394,11 @@ y_axis_title <- paste(calc_label, base_label)
               name = ~trt,
               hoverinfo = "text",
               text = ~paste("Imaging Date: ", imaging_date, "<br>", y_axis_label, ": ", sprintf("%.2e", y_value))) %>%
-      layout(
-        yaxis = list(
-          type = "log",
-          title = y_axis_title
-        ),
+layout(
+  yaxis = list(
+    type = if (input$log_scale) "log" else "linear",
+    title = y_axis_title
+  ),
         xaxis = list(
           type = "linear",
           title = "Days from Treatment",
