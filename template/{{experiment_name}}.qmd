@@ -152,6 +152,8 @@ write_csv(processed_data, file = "data/processed/processed_data.csv")
 ```
 
 ```{r Treatment Assignment}
+#| output: FALSE
+
 # Load processed data
 processed_data <- read.csv("data/processed/processed_data.csv")
 
