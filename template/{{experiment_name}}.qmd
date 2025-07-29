@@ -784,9 +784,9 @@ processed_data <- read.csv("data/processed/processed_data.csv")
 combined_data <- raw_mass %>%
   inner_join(processed_data, by = "id")
 
-# Sort data by mass_date from earliest to latest
+# Sort data by mass_date from latest to earliest
 combined_data <- combined_data %>%
-  arrange(mass_date)
+  arrange(desc(mass_date))
 
 # Create a ggplot object with facetting by trt and grouping by id
 p <- ggplot(combined_data, aes(x = mass_date, y = mass, color = factor(id), group = id)) +
@@ -993,59 +993,69 @@ print(scatterplot)
 #| title: "Euthanasia Criteria Check"
 
 # Load data
-processed_data <- read.csv("data/processed/processed_data.csv")
+processed_data <- read.csv("data/processed/processed_data.csv", stringsAsFactors = FALSE)
 
-# Ensure imaging_date is in Date format if necessary
+# Ensure imaging_date and death_date are in Date format
 processed_data$imaging_date <- as.Date(processed_data$imaging_date, format = "%Y-%m-%d")
+processed_data$death_date <- as.Date(processed_data$death_date, format = "%Y-%m-%d")  # Ensure this is Date too
 
-# Find the most recent imaging date
+# Most recent imaging date
 most_recent_imaging_date <- max(processed_data$imaging_date, na.rm = TRUE)
 
-# Find high-flux mice (alive and meeting criteria)
-high_flux_mice <- processed_data %>%
-  filter(imaging_date == most_recent_imaging_date,
-         total_flux >= 2e10,
-         is.na(death_date) | death_date == "")
+# Filter to only alive mice (no death date)
+alive_data <- processed_data %>%
+  filter(is.na(death_date))
 
-# Read and merge mass data
-raw_mass <- read.csv("data/raw/raw_mass.csv")
-processed_data <- left_join(processed_data, raw_mass, by = "id")
+# Find high-flux mice (alive and meeting criteria)
+high_flux_mice <- alive_data %>%
+  filter(imaging_date == most_recent_imaging_date,
+         total_flux >= 2e10)
+
+# Load and merge mass data
+raw_mass <- read.csv("data/raw/raw_mass.csv", stringsAsFactors = FALSE)
+alive_data <- left_join(alive_data, raw_mass, by = "id")
 
 # Convert mass_date to Date format
-processed_data$mass_date <- as.Date(processed_data$mass_date, format = "%Y-%m-%d")
+alive_data$mass_date <- as.Date(alive_data$mass_date, format = "%Y-%m-%d")
 
-# Check for any alive mice
-if (any(is.na(processed_data$death_date) | processed_data$death_date == "")) {
-  
-  # Calculate mass loss
-  mass_loss_mice <- processed_data %>%
-    filter(!is.na(mass_date)) %>%
-    group_by(id) %>%
-    summarize(
-      oldest_mass_date = min(mass_date, na.rm = TRUE),
-      newest_mass_date = max(mass_date, na.rm = TRUE),
-      .groups = 'drop'
-    ) %>%
-    mutate(
-      days_between = as.numeric(difftime(newest_mass_date, oldest_mass_date, units = "days")),
-      mass_loss_percentage = ifelse(days_between > 0, (days_between / as.numeric(oldest_mass_date)) * 100, NA)
-    ) %>%
-    filter(mass_loss_percentage >= 20) %>%
-    select(id)
-  
-  # Mice to euthanize
-  mice_to_euthanize <- unique(c(high_flux_mice$id, mass_loss_mice$id))
+# Prepare mass data
+mass_data <- alive_data %>%
+  filter(!is.na(mass_date), !is.na(mass)) %>%
+  select(id, mass_date, mass) %>%
+  arrange(id, mass_date)
 
-  if (length(mice_to_euthanize) > 0) {
-    cat("With respect to IACUC protocol, euthanize the following mice:\n")
-    if (nrow(high_flux_mice) > 0) cat("- High total flux:", paste(high_flux_mice$id, collapse = ", "), "\n")
-    if (nrow(mass_loss_mice) > 0) cat("- Significant mass loss:", paste(mass_loss_mice$id, collapse = ", "), "\n")
+# Split by mouse ID
+mass_by_mouse <- split(mass_data, mass_data$id)
+
+# Check for ???20% mass loss between any two timepoints
+mass_loss_ids <- lapply(mass_by_mouse, function(df) {
+  n <- nrow(df)
+  for (i in 1:(n - 1)) {
+    for (j in (i + 1):n) {
+      initial <- df$mass[i]
+      later <- df$mass[j]
+      pct_drop <- (initial - later) / initial
+      if (!is.na(pct_drop) && pct_drop >= 0.2) {
+        return(df$id[1])
+      }
+    }
+  }
+  return(NULL)
+}) %>% unlist() %>% unique()
+
+# Mice to euthanize
+mice_to_euthanize <- unique(c(high_flux_mice$id, mass_loss_ids))
+
+if (length(mice_to_euthanize) > 0) {
+  cat("With respect to IACUC protocol, euthanize the following mice:\n")
+  if (nrow(high_flux_mice) > 0) cat("- High total flux:", paste(high_flux_mice$id, collapse = ", "), "\n")
+  if (length(mass_loss_ids) > 0) cat("- Significant mass loss:", paste(mass_loss_ids, collapse = ", "), "\n")
+} else {
+  if (nrow(alive_data) == 0) {
+    cat("All mice are deceased. No action needed.\n")
   } else {
     cat("No mice meet euthanasia criteria.\n")
   }
-
-} else {
-  cat("All mice are deceased. No action needed.\n")
 }
 ```
 
